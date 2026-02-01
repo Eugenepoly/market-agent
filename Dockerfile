@@ -1,0 +1,13 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+ENV PORT=8080
+ENV PYTHONUNBUFFERED=1
+
+CMD ["functions-framework", "--target=main_handler", "--source=market_agent.py", "--port=8080"]
