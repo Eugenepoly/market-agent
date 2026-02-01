@@ -61,9 +61,13 @@ def main_handler(request):
 [建议将哪些具体数据点作为新 Source 录入，以修正原有的 2026 估值模型]
 """.replace("[日期]", str(datetime.date.today()))
 
+    # 启用 Google Search 工具获取实时数据
     response = client.models.generate_content(
         model='gemini-2.0-flash',
-        contents=prompt
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())]
+        )
     )
     report_md = response.text
 
