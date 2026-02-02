@@ -17,7 +17,7 @@ from flask import Request, jsonify
 
 from config import get_config
 from core import Orchestrator, WorkflowContext, WorkflowStatus
-from agents import ReportAgent, DeepAnalysisAgent, SocialAgent
+from agents import ReportAgent, DeepAnalysisAgent, SocialAgent, MonitorAgent
 from workflows.daily_workflow import get_daily_workflow_factory
 
 
@@ -29,6 +29,7 @@ def create_orchestrator() -> Orchestrator:
     orchestrator.register_agent(ReportAgent)
     orchestrator.register_agent(DeepAnalysisAgent)
     orchestrator.register_agent(SocialAgent)
+    orchestrator.register_agent(MonitorAgent)
 
     # Register workflows
     orchestrator.register_workflow("daily", get_daily_workflow_factory())
@@ -144,6 +145,19 @@ def main_handler(request: Request):
 
             context = orchestrator.run_single_agent("social_agent", context=context)
             return jsonify(context.to_dict()), 200
+
+        if path == "/agent/monitor" and method == "POST":
+            data = request.get_json(silent=True) or {}
+            quick = data.get("quick", False)
+
+            monitor = MonitorAgent()
+            if quick:
+                result = monitor.run_quick_check()
+                return jsonify(result), 200
+            else:
+                context = WorkflowContext()
+                result = monitor.run(context)
+                return jsonify(result.to_dict()), 200
 
         # List workflows
         if path == "/workflows" and method == "GET":
@@ -369,6 +383,93 @@ def cli_agent_social(args):
         sys.exit(1)
 
 
+def _cleanup_monitor_files(directory: str, prefix: str, max_files: int = 3) -> None:
+    """Remove old monitor files, keeping only the most recent ones."""
+    if not os.path.exists(directory):
+        return
+
+    files = [f for f in os.listdir(directory) if f.startswith(prefix)]
+
+    if len(files) <= max_files:
+        return
+
+    files.sort()
+    files_to_delete = files[:-max_files]
+
+    for filename in files_to_delete:
+        filepath = os.path.join(directory, filename)
+        try:
+            os.remove(filepath)
+        except Exception:
+            pass
+
+
+def cli_agent_monitor(args):
+    """Run monitor agent via CLI."""
+    print("Running VIP monitor agent...")
+
+    monitor = MonitorAgent()
+
+    if args.quick:
+        # Quick check without LLM analysis
+        result = monitor.run_quick_check()
+        print(f"\nPosts collected: {result['posts_collected']}")
+        print(f"Sources: {', '.join(result['sources']) if result['sources'] else 'None'}")
+
+        if result['high_priority_alerts']:
+            print("\n🔴 HIGH PRIORITY ALERTS:")
+            for alert in result['high_priority_alerts']:
+                post = alert['post']
+                keywords = [kw[1] for kw in alert['matched_keywords']]
+                print(f"  @{post['handle']}: {post['content'][:100]}...")
+                print(f"    Keywords: {', '.join(keywords)}")
+        elif result['alerts']:
+            print(f"\n⚠️ {len(result['alerts'])} keyword alerts detected")
+        else:
+            print("\n✅ No alerts")
+
+        # Save result (hourly, keep max 3)
+        import json
+        monitor_dir = "./data/monitor"
+        os.makedirs(monitor_dir, exist_ok=True)
+        from datetime import datetime
+        filename = f"{monitor_dir}/quick_check_{datetime.now().strftime('%Y%m%d_%H')}.json"
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+        print(f"\nResult saved to: {filename}")
+
+        # Cleanup old files
+        _cleanup_monitor_files(monitor_dir, "quick_check_", max_files=3)
+
+    else:
+        # Full analysis with LLM
+        context = WorkflowContext()
+        result = monitor.run(context)
+
+        if result.success:
+            output = result.output
+            print("\n" + "=" * 50)
+            print(output.get("analysis", "No analysis generated"))
+            print("=" * 50)
+            print(f"\nPosts collected: {output.get('posts_collected', 0)}")
+            print(f"Keyword alerts: {output.get('keyword_alerts_count', 0)}")
+
+            # Save analysis (hourly, keep max 3)
+            monitor_dir = "./data/monitor"
+            os.makedirs(monitor_dir, exist_ok=True)
+            from datetime import datetime
+            filename = f"{monitor_dir}/analysis_{datetime.now().strftime('%Y%m%d_%H')}.txt"
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(output.get("analysis", ""))
+            print(f"\nAnalysis saved to: {filename}")
+
+            # Cleanup old files
+            _cleanup_monitor_files(monitor_dir, "analysis_", max_files=3)
+        else:
+            print(f"Error: {result.error}")
+            sys.exit(1)
+
+
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -418,6 +519,10 @@ def main():
     social_parser.add_argument("--report-file", required=True, help="Path to report file")
     social_parser.add_argument("--analysis-file", type=str, help="Path to analysis file (optional)")
 
+    # agent monitor
+    monitor_parser = agent_subparsers.add_parser("monitor", help="Run VIP monitor agent")
+    monitor_parser.add_argument("--quick", action="store_true", help="Quick check without LLM analysis")
+
     args = parser.parse_args()
 
     # Set local mode for CLI
@@ -443,6 +548,8 @@ def main():
             cli_agent_analysis(args)
         elif args.agent_command == "social":
             cli_agent_social(args)
+        elif args.agent_command == "monitor":
+            cli_agent_monitor(args)
         else:
             agent_parser.print_help()
     else:

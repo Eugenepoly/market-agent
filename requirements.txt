@@ -3,3 +3,5 @@ google-genai>=1.0.0
 google-cloud-storage>=2.0.0
 python-dotenv>=1.0.0
 flask>=2.0.0
+requests>=2.28.0
+beautifulsoup4>=4.11.0

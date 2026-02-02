@@ -38,3 +38,6 @@ reports/
 # Social content directories
 pending_social_content/
 approved_social_content/
+
+# Data collection output
+data/

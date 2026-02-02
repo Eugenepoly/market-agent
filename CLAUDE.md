@@ -5,6 +5,7 @@
 - 每日市场研报生成
 - 深度分析（支持指定主题或自动提取）
 - 社交媒体推文草稿生成（需人工审核）
+- **大V社交监控**（X/Twitter、Truth Social）
 
 支持本地运行和 Cloud Run 部署两种模式。
 
@@ -21,6 +22,7 @@
 market_agent/
 ├── main.py                    # 统一入口 (HTTP + CLI)
 ├── config.py                  # 配置管理
+├── watchlist.py               # 监控列表配置 (大V、持仓、关键词)
 ├── core/
 │   ├── __init__.py
 │   ├── orchestrator.py        # 工作流编排器
@@ -30,7 +32,17 @@ market_agent/
 │   ├── __init__.py
 │   ├── report_agent.py        # 报告生成 Agent
 │   ├── deep_analysis_agent.py # 深度分析 Agent
-│   └── social_agent.py        # 社交发布 Agent
+│   ├── social_agent.py        # 社交发布 Agent
+│   └── monitor_agent.py       # VIP 监控 Agent
+├── collectors/                # 数据采集层
+│   ├── __init__.py
+│   ├── base_collector.py      # 采集器基类
+│   ├── social/                # 社交媒体采集
+│   │   ├── x_collector.py     # X/Twitter (Nitter + Gemini)
+│   │   └── truth_collector.py # Truth Social
+│   ├── market/                # [TODO] 市场数据采集
+│   ├── crypto/                # [TODO] 链上数据采集
+│   └── news/                  # [TODO] 新闻采集
 ├── workflows/
 │   ├── __init__.py
 │   └── daily_workflow.py      # 每日工作流定义
@@ -42,6 +54,9 @@ market_agent/
 │   ├── report_prompt.py       # 报告提示词
 │   ├── deep_analysis_prompt.py
 │   └── social_prompt.py
+├── data/                      # 采集数据存储 (不上传)
+│   ├── social_posts/          # 原始帖子 (保留3小时)
+│   └── monitor/               # 监控分析报告
 ├── requirements.txt
 ├── Dockerfile
 ├── .env                       # 本地环境变量 (不上传)
@@ -60,6 +75,7 @@ market_agent/
 | ReportAgent | 生成每日市场研报 | 无 | 市场报告 | 否 |
 | DeepAnalysisAgent | 深度分析 | 报告 + 主题(可选) | 深度分析 | 否 |
 | SocialAgent | 生成推文草稿 | 报告/分析 | X 推文草稿 | **是** |
+| MonitorAgent | VIP 社交监控 | 无 | 监控报告 + 告警 | 否 |
 
 ## 环境变量
 | 变量名 | 说明 | 默认值 |
@@ -116,6 +132,14 @@ python main.py agent analysis --report-file ./reports/xxx.txt --topic "NVDA估�
 # 运行社交 Agent（需要报告，可选分析）
 python main.py agent social --report-file ./reports/xxx.txt
 python main.py agent social --report-file ./reports/xxx.txt --analysis-file ./reports/analysis/xxx.txt
+
+# === VIP 监控 ===
+
+# 快速检查（只采集+关键词检测，不调用LLM）
+python main.py agent monitor --quick
+
+# 完整分析（采集 + LLM 分析市场影响）
+python main.py agent monitor
 ```
 
 ### 本地 HTTP 运行 (functions-framework)
@@ -162,6 +186,7 @@ gcloud run services update market-agent \
 | `/agent/report` | POST | 单独运行报告 Agent |
 | `/agent/deep-analysis` | POST | 单独运行深度分析 Agent |
 | `/agent/social` | POST | 单独运行社交 Agent |
+| `/agent/monitor` | POST | 运行 VIP 监控 Agent |
 
 ### 请求示例
 
@@ -198,6 +223,52 @@ curl -X POST http://localhost:8080/workflow/{id}/reject \
 - **本地模式**: 生成草稿后显示在终端，同时保存到 `pending_social_content/` 目录
 - **Cloud 模式**: 草稿保存到 GCS pending 目录，调用 `/workflow/{id}/approve` 审核
 
+## 监控配置 (watchlist.py)
+
+### 大V监控列表
+```python
+VIP_ACCOUNTS = {
+    "x": [
+        {"handle": "elonmusk", "name": "Elon Musk", "category": "tech_leader"},
+        {"handle": "realDonaldTrump", "name": "Donald Trump", "category": "political"},
+        {"handle": "cz_binance", "name": "CZ", "category": "crypto"},
+        # ... 添加更多
+    ],
+    "truth_social": [
+        {"handle": "realDonaldTrump", "name": "Donald Trump", "category": "political"},
+    ],
+}
+```
+
+### 持仓监控列表
+```python
+WATCHLIST = {
+    "stocks": [
+        {"symbol": "NVDA", "name": "NVIDIA", "category": "ai_chip"},
+        {"symbol": "GOOGL", "name": "Alphabet", "category": "ai_platform"},
+        # ...
+    ],
+    "crypto": [
+        {"symbol": "BTC", "name": "Bitcoin", "category": "crypto_major"},
+        {"symbol": "ETH", "name": "Ethereum", "category": "crypto_major"},
+    ],
+}
+```
+
+### 告警关键词
+```python
+ALERT_KEYWORDS = {
+    "market_moving": ["fed", "fomc", "rate cut", "inflation", ...],
+    "crypto": ["bitcoin", "btc", "ethereum", "sec", "etf", ...],
+    "stocks": ["earnings", "guidance", "buyback", ...],
+}
+```
+
+### 数据保留策略
+- 每小时保存一份采集数据
+- 同一小时内重复运行会覆盖
+- 最多保留最近 3 小时的数据，自动清理旧文件
+
 ## Cloud 资源
 - **Cloud Run 服务**: market-agent (us-central1)
 - **Cloud Storage Bucket**: market-reports-bucket (公开可读)
@@ -221,10 +292,13 @@ curl -X POST http://localhost:8080/workflow/{id}/reject \
 # === 本地测试 ===
 python main.py workflow daily
 python main.py agent report
+python main.py agent monitor --quick    # VIP 快速监控
+python main.py agent monitor            # VIP 完整分析
 cat reports/Market_Update_$(date +%Y-%m-%d).txt
 
 # === Cloud 测试 ===
 curl -X POST https://market-agent-oay2s5c5qa-uc.a.run.app/workflow/daily
+curl -X POST https://market-agent-oay2s5c5qa-uc.a.run.app/agent/monitor
 curl https://storage.googleapis.com/market-reports-bucket/Market_Update_$(date +%Y-%m-%d).txt
 
 # === 运维命令 ===
