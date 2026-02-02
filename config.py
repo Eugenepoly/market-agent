@@ -27,7 +27,7 @@ class Config:
     workflow_state_dir: str = field(default_factory=lambda: os.environ.get("WORKFLOW_STATE_DIR", "./.workflow_state"))
 
     # Model settings
-    model_name: str = field(default_factory=lambda: os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"))
+    model_name: str = field(default_factory=lambda: os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview"))
 
     # Approval settings
     pending_approval_dir: str = field(default_factory=lambda: os.environ.get("PENDING_APPROVAL_DIR", "./pending_social_content"))
