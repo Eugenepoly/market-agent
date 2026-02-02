@@ -127,16 +127,16 @@ Look for:
 1. Large BTC transfers (>1000 BTC)
 2. Large ETH transfers (>10000 ETH)
 3. Large stablecoin movements (USDT, USDC >100M)
-4. Exchange deposits/withdrawals by whales
+4. Exchange deposits/withdrawals by whales (Binance, OKX, Coinbase, Bitfinex, Kraken, Bybit)
 5. Any notable wallet activity from known entities
 
 For each significant movement, note:
 - Amount and asset
-- From/To (if known: exchange, unknown wallet, etc.)
+- From/To (specify exchange name if known: Binance, OKX, Coinbase, etc.)
 - Potential market implications
 
 Focus on movements that could indicate:
-- Selling pressure (large deposits to exchanges)
+- Selling pressure (large deposits to exchanges like OKX, Binance)
 - Accumulation (withdrawals from exchanges)
 - OTC deals or institutional activity
 """
@@ -175,13 +175,17 @@ Look for:
 1. Bitcoin exchange reserves trend (increasing or decreasing)
 2. Ethereum exchange reserves trend
 3. Net exchange inflows/outflows in the past 24-48 hours
-4. Which exchanges are seeing the most activity
+4. Which exchanges are seeing the most activity (Binance, OKX, Coinbase, Bitfinex, Kraken)
+
+Focus on major exchanges:
+- Binance, OKX, Coinbase, Bitfinex, Kraken, Bybit
 
 Provide specific numbers if available from sources like:
 - CryptoQuant
 - Glassnode
 - IntoTheBlock
 - Santiment
+- Arkham Intelligence
 
 Explain what the reserve trends suggest about market sentiment.
 """

@@ -100,24 +100,34 @@ ONCHAIN_CONFIG = {
     "min_usdt_value": 10_000_000,  # USDT 最小值 (1000万)
 
     # 已知巨鲸地址 (可添加更多)
+    # 参考: https://intel.arkm.com/explorer/entity/
     "whale_addresses": {
         "btc": [
             # Binance Cold Wallet
             "34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo",
             # Bitfinex Cold Wallet
             "bc1qgdjqv0av3q56jvd82tkdjpy7gdp9ut8tlqmgrpmv24sq90ecnvqqjwvw97",
+            # Coinbase Cold Wallet
+            "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
         ],
         "eth": [
             # Binance
             "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",
-            # Wrapped BTC
-            "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+            # OKX
+            "0x6cc5f688a315f3dc28a7781717a9a798a59fda7b",
+            # Bitfinex
+            "0x1151314c646Ce4E0eFD76d1aF4760aE66a9Fe30F",
+            # Kraken
+            "0x2910543Af39abA0Cd09dBb2D50200b3E800A63D2",
         ],
     },
 
     # 监控的交易所 (用于识别交易所地址)
     "exchanges": [
         "binance", "coinbase", "kraken", "okx", "bybit",
-        "bitfinex", "huobi", "kucoin", "gemini",
+        "bitfinex", "huobi", "kucoin", "gemini", "gate.io",
     ],
+
+    # Arkham Intelligence 查询链接
+    # 可在此查看更多交易所地址: https://intel.arkm.com/explorer/entity/
 }
