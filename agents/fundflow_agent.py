@@ -108,18 +108,43 @@ class FundFlowAgent(BaseAgent):
                 symbol = stock.get("symbol", "")
                 sections.append(f"\n**{symbol}**")
 
+                # Quote data
+                quote = stock.get("quote", {})
+                if quote and quote.get("price"):
+                    change = quote.get("change_percent", 0)
+                    sign = "+" if change and change > 0 else ""
+                    sections.append(f"- 价格: ${quote['price']} ({sign}{change:.2f}%)" if change else f"- 价格: ${quote['price']}")
+
                 # Options
                 opts = stock.get("options", {})
                 if opts and "put_call_ratio_oi" in opts:
                     sections.append(f"- Put/Call Ratio (OI): {opts['put_call_ratio_oi']}")
                     sections.append(f"- Put/Call Ratio (Vol): {opts.get('put_call_ratio_volume', 'N/A')}")
+                    if opts.get("avg_call_iv"):
+                        sections.append(f"- 隐含波动率 (Call): {opts['avg_call_iv']*100:.1f}%")
 
-                # Statistics
+                # Statistics from Yahoo
                 stats = stock.get("statistics", {})
                 if stats:
-                    sections.append(f"- 机构持仓: {stats.get('held_percent_institutions', 'N/A')}")
-                    sections.append(f"- 内部人持仓: {stats.get('held_percent_insiders', 'N/A')}")
-                    sections.append(f"- 做空比例: {stats.get('short_percent_of_float', 'N/A')}")
+                    inst = stats.get('held_percent_institutions')
+                    insider = stats.get('held_percent_insiders')
+                    short_pct = stats.get('short_percent_of_float')
+                    if inst:
+                        sections.append(f"- 机构持仓: {inst*100:.1f}%")
+                    if insider:
+                        sections.append(f"- 内部人持仓: {insider*100:.1f}%")
+                    if short_pct:
+                        sections.append(f"- 做空比例: {short_pct*100:.2f}%")
+
+                # Finviz data (institutional movement)
+                finviz = stock.get("finviz", {})
+                if finviz:
+                    inst_data = finviz.get("institutional", {})
+                    if inst_data:
+                        sections.append(f"- 机构持仓 (Finviz): {inst_data.get('inst_own', 'N/A')}")
+                        sections.append(f"- 机构变动: {inst_data.get('inst_trans', 'N/A')}")
+                        sections.append(f"- 内部人变动: {inst_data.get('insider_trans', 'N/A')}")
+                        sections.append(f"- 做空比例: {inst_data.get('short_float', 'N/A')}")
 
         # Crypto data
         if "crypto" in data:
@@ -171,11 +196,23 @@ class FundFlowAgent(BaseAgent):
         # Market summary
         collected["market_summary"] = self.yahoo_collector.get_market_summary()
 
-        # Stock data
+        # Stock data from Yahoo (options, quotes)
         yahoo_result = self.yahoo_collector.collect()
         if yahoo_result.success:
-            collected["stocks"] = yahoo_result.data
+            collected["stocks_yahoo"] = yahoo_result.data
             self.yahoo_collector.save_data(yahoo_result, "fund_flows")
+
+        # Stock data from Finviz (institutional, insider trading)
+        finviz_result = self.finviz_collector.collect()
+        if finviz_result.success:
+            collected["stocks_finviz"] = finviz_result.data
+            self.finviz_collector.save_data(finviz_result, "fund_flows")
+
+        # Merge stock data
+        collected["stocks"] = self._merge_stock_data(
+            collected.get("stocks_yahoo", []),
+            collected.get("stocks_finviz", [])
+        )
 
         # Crypto data
         crypto_result = self.crypto_collector.collect(include_gemini_analysis=not quick)
@@ -184,6 +221,27 @@ class FundFlowAgent(BaseAgent):
             self.crypto_collector.save_data(crypto_result, "fund_flows")
 
         return collected
+
+    def _merge_stock_data(self, yahoo_data: list, finviz_data: list) -> list:
+        """Merge Yahoo and Finviz data by symbol."""
+        merged = {}
+
+        # Add Yahoo data
+        for item in yahoo_data:
+            symbol = item.get("symbol", "")
+            if symbol:
+                merged[symbol] = item
+
+        # Merge Finviz data
+        for item in finviz_data:
+            symbol = item.get("symbol", "")
+            if symbol:
+                if symbol in merged:
+                    merged[symbol]["finviz"] = item
+                else:
+                    merged[symbol] = {"symbol": symbol, "finviz": item}
+
+        return list(merged.values())
 
     def run(self, context: WorkflowContext) -> AgentResult:
         """Execute the fund flow agent."""
@@ -247,26 +305,48 @@ class FundFlowAgent(BaseAgent):
             "timestamp": datetime.utcnow().isoformat(),
             "market": {},
             "options": {},
+            "institutional": {},
             "crypto": {},
         }
 
         # Market indices
         market = collected.get("market_summary", {})
         if market:
-            vix = market.get("^VIX", {})
-            if vix:
-                summary["market"]["vix"] = vix.get("price")
-                summary["market"]["vix_change"] = vix.get("change_percent")
+            for symbol, info in market.items():
+                if isinstance(info, dict) and "price" in info:
+                    summary["market"][symbol] = {
+                        "name": info.get("name"),
+                        "price": info.get("price"),
+                        "change_percent": info.get("change_percent"),
+                    }
 
-        # Options P/C ratios
+        # Stock data
         stocks = collected.get("stocks", [])
         for stock in stocks:
+            symbol = stock.get("symbol", "")
+            if not symbol:
+                continue
+
+            # Options P/C ratios
             opts = stock.get("options", {})
             if opts and "put_call_ratio_oi" in opts:
-                summary["options"][stock["symbol"]] = {
+                summary["options"][symbol] = {
                     "pc_ratio": opts["put_call_ratio_oi"],
                     "pc_ratio_vol": opts.get("put_call_ratio_volume"),
+                    "avg_iv": opts.get("avg_call_iv"),
                 }
+
+            # Institutional from Finviz
+            finviz = stock.get("finviz", {})
+            if finviz:
+                inst = finviz.get("institutional", {})
+                if inst:
+                    summary["institutional"][symbol] = {
+                        "inst_own": inst.get("inst_own"),
+                        "inst_trans": inst.get("inst_trans"),
+                        "insider_trans": inst.get("insider_trans"),
+                        "short_float": inst.get("short_float"),
+                    }
 
         # Crypto
         crypto = collected.get("crypto", {})

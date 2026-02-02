@@ -1,6 +1,6 @@
-"""Yahoo Finance collector for options and market data."""
+"""Yahoo Finance collector using yfinance library."""
 
-import requests
+import yfinance as yf
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
@@ -9,7 +9,7 @@ from watchlist import WATCHLIST
 
 
 class YahooCollector(BaseCollector):
-    """Collector for Yahoo Finance market data."""
+    """Collector for Yahoo Finance market data using yfinance."""
 
     name = "yahoo_collector"
     source = "yahoo_finance"
@@ -17,85 +17,73 @@ class YahooCollector(BaseCollector):
     def __init__(self, data_dir: str = "./data"):
         """Initialize the Yahoo Finance collector."""
         super().__init__(data_dir)
-        self.base_url = "https://query1.finance.yahoo.com/v8/finance"
-        self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        })
 
     def _get_quote(self, symbol: str) -> Dict[str, Any]:
         """Get real-time quote data."""
-        url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbol}"
-
         try:
-            resp = self.session.get(url, timeout=10)
-            if resp.status_code != 200:
-                return {"error": f"HTTP {resp.status_code}"}
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
 
-            data = resp.json()
-            result = data.get("quoteResponse", {}).get("result", [])
-
-            if result:
-                quote = result[0]
-                return {
-                    "symbol": symbol,
-                    "price": quote.get("regularMarketPrice"),
-                    "change": quote.get("regularMarketChange"),
-                    "change_percent": quote.get("regularMarketChangePercent"),
-                    "volume": quote.get("regularMarketVolume"),
-                    "avg_volume": quote.get("averageDailyVolume3Month"),
-                    "market_cap": quote.get("marketCap"),
-                    "pe_ratio": quote.get("trailingPE"),
-                    "fifty_day_avg": quote.get("fiftyDayAverage"),
-                    "two_hundred_day_avg": quote.get("twoHundredDayAverage"),
-                }
-
-            return {"symbol": symbol, "error": "No data"}
+            return {
+                "symbol": symbol,
+                "price": info.get("regularMarketPrice") or info.get("currentPrice"),
+                "change": info.get("regularMarketChange"),
+                "change_percent": info.get("regularMarketChangePercent"),
+                "volume": info.get("regularMarketVolume") or info.get("volume"),
+                "avg_volume": info.get("averageVolume"),
+                "market_cap": info.get("marketCap"),
+                "pe_ratio": info.get("trailingPE"),
+                "fifty_day_avg": info.get("fiftyDayAverage"),
+                "two_hundred_day_avg": info.get("twoHundredDayAverage"),
+                "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
+                "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
+            }
 
         except Exception as e:
             return {"symbol": symbol, "error": str(e)}
 
     def _get_options_data(self, symbol: str) -> Dict[str, Any]:
         """Get options data including put/call info."""
-        url = f"https://query1.finance.yahoo.com/v7/finance/options/{symbol}"
-
         try:
-            resp = self.session.get(url, timeout=10)
-            if resp.status_code != 200:
-                return {"error": f"HTTP {resp.status_code}"}
+            ticker = yf.Ticker(symbol)
 
-            data = resp.json()
-            option_chain = data.get("optionChain", {}).get("result", [])
+            # Get available expiration dates
+            expirations = ticker.options
+            if not expirations:
+                return {"symbol": symbol, "error": "No options data available"}
 
-            if not option_chain:
-                return {"symbol": symbol, "error": "No options data"}
+            # Get nearest expiration
+            nearest_exp = expirations[0]
+            opt_chain = ticker.option_chain(nearest_exp)
 
-            result = option_chain[0]
-            quote = result.get("quote", {})
-            options = result.get("options", [{}])[0]
-
-            calls = options.get("calls", [])
-            puts = options.get("puts", [])
+            calls = opt_chain.calls
+            puts = opt_chain.puts
 
             # Calculate put/call ratio based on open interest
-            total_call_oi = sum(c.get("openInterest", 0) for c in calls)
-            total_put_oi = sum(p.get("openInterest", 0) for p in puts)
-            total_call_vol = sum(c.get("volume", 0) or 0 for c in calls)
-            total_put_vol = sum(p.get("volume", 0) or 0 for p in puts)
+            total_call_oi = calls['openInterest'].sum() if 'openInterest' in calls.columns else 0
+            total_put_oi = puts['openInterest'].sum() if 'openInterest' in puts.columns else 0
+            total_call_vol = calls['volume'].sum() if 'volume' in calls.columns else 0
+            total_put_vol = puts['volume'].sum() if 'volume' in puts.columns else 0
 
             pc_ratio_oi = total_put_oi / total_call_oi if total_call_oi > 0 else 0
             pc_ratio_vol = total_put_vol / total_call_vol if total_call_vol > 0 else 0
 
+            # Get implied volatility (average)
+            avg_call_iv = calls['impliedVolatility'].mean() if 'impliedVolatility' in calls.columns else 0
+            avg_put_iv = puts['impliedVolatility'].mean() if 'impliedVolatility' in puts.columns else 0
+
             return {
                 "symbol": symbol,
-                "expiration_dates": result.get("expirationDates", []),
-                "total_call_open_interest": total_call_oi,
-                "total_put_open_interest": total_put_oi,
-                "total_call_volume": total_call_vol,
-                "total_put_volume": total_put_vol,
+                "nearest_expiration": nearest_exp,
+                "total_expirations": len(expirations),
+                "total_call_open_interest": int(total_call_oi),
+                "total_put_open_interest": int(total_put_oi),
+                "total_call_volume": int(total_call_vol),
+                "total_put_volume": int(total_put_vol),
                 "put_call_ratio_oi": round(pc_ratio_oi, 3),
                 "put_call_ratio_volume": round(pc_ratio_vol, 3),
-                "implied_volatility": quote.get("impliedVolatility"),
+                "avg_call_iv": round(avg_call_iv, 4) if avg_call_iv else None,
+                "avg_put_iv": round(avg_put_iv, 4) if avg_put_iv else None,
             }
 
         except Exception as e:
@@ -103,41 +91,32 @@ class YahooCollector(BaseCollector):
 
     def _get_key_statistics(self, symbol: str) -> Dict[str, Any]:
         """Get key statistics including institutional holdings."""
-        url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{symbol}?modules=defaultKeyStatistics,institutionOwnership"
-
         try:
-            resp = self.session.get(url, timeout=10)
-            if resp.status_code != 200:
-                return {"error": f"HTTP {resp.status_code}"}
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
 
-            data = resp.json()
-            result = data.get("quoteSummary", {}).get("result", [])
-
-            if not result:
-                return {"symbol": symbol, "error": "No data"}
-
-            stats = result[0].get("defaultKeyStatistics", {})
-            inst = result[0].get("institutionOwnership", {})
-
-            # Get top institutional holders
-            holders = inst.get("ownershipList", [])[:5]
-            top_holders = [
-                {
-                    "name": h.get("organization", ""),
-                    "shares": h.get("position", {}).get("raw", 0),
-                    "percent": h.get("pctHeld", {}).get("raw", 0),
-                }
-                for h in holders
-            ]
+            # Get institutional holders
+            try:
+                inst_holders = ticker.institutional_holders
+                top_holders = []
+                if inst_holders is not None and not inst_holders.empty:
+                    for _, row in inst_holders.head(5).iterrows():
+                        top_holders.append({
+                            "name": row.get("Holder", ""),
+                            "shares": row.get("Shares", 0),
+                            "percent": row.get("% Out", 0),
+                        })
+            except Exception:
+                top_holders = []
 
             return {
                 "symbol": symbol,
-                "short_ratio": stats.get("shortRatio", {}).get("raw"),
-                "short_percent_of_float": stats.get("shortPercentOfFloat", {}).get("raw"),
-                "shares_short": stats.get("sharesShort", {}).get("raw"),
-                "shares_short_prior": stats.get("sharesShortPriorMonth", {}).get("raw"),
-                "held_percent_insiders": stats.get("heldPercentInsiders", {}).get("raw"),
-                "held_percent_institutions": stats.get("heldPercentInstitutions", {}).get("raw"),
+                "short_ratio": info.get("shortRatio"),
+                "short_percent_of_float": info.get("shortPercentOfFloat"),
+                "shares_short": info.get("sharesShort"),
+                "shares_short_prior": info.get("sharesShortPriorMonth"),
+                "held_percent_insiders": info.get("heldPercentInsiders"),
+                "held_percent_institutions": info.get("heldPercentInstitutions"),
                 "top_institutional_holders": top_holders,
             }
 
@@ -165,8 +144,8 @@ class YahooCollector(BaseCollector):
         """
         if symbols is None:
             stock_symbols = [s["symbol"] for s in WATCHLIST.get("stocks", [])]
-            index_symbols = [s["symbol"] for s in WATCHLIST.get("indices", [])]
-            symbols = stock_symbols + index_symbols
+            # Skip indices for now as they may have different data availability
+            symbols = stock_symbols
 
         all_data = []
         errors = []
@@ -192,29 +171,34 @@ class YahooCollector(BaseCollector):
 
     def get_market_summary(self) -> Dict[str, Any]:
         """Get overall market summary including VIX, major indices."""
-        indices = ["^GSPC", "^IXIC", "^DJI", "^VIX", "^TNX"]  # S&P, Nasdaq, Dow, VIX, 10Y Treasury
+        indices = {
+            "^GSPC": "S&P 500",
+            "^IXIC": "Nasdaq",
+            "^DJI": "Dow Jones",
+            "^VIX": "VIX",
+            "^TNX": "10Y Treasury",
+        }
 
-        url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={','.join(indices)}"
+        summary = {}
 
-        try:
-            resp = self.session.get(url, timeout=10)
-            if resp.status_code != 200:
-                return {"error": f"HTTP {resp.status_code}"}
+        for symbol, name in indices.items():
+            try:
+                ticker = yf.Ticker(symbol)
+                hist = ticker.history(period="1d")
 
-            data = resp.json()
-            results = data.get("quoteResponse", {}).get("result", [])
+                if not hist.empty:
+                    current = hist['Close'].iloc[-1]
+                    open_price = hist['Open'].iloc[-1]
+                    change = current - open_price
+                    change_pct = (change / open_price) * 100 if open_price else 0
 
-            summary = {}
-            for quote in results:
-                symbol = quote.get("symbol", "")
-                summary[symbol] = {
-                    "name": quote.get("shortName", ""),
-                    "price": quote.get("regularMarketPrice"),
-                    "change": quote.get("regularMarketChange"),
-                    "change_percent": quote.get("regularMarketChangePercent"),
-                }
+                    summary[symbol] = {
+                        "name": name,
+                        "price": round(current, 2),
+                        "change": round(change, 2),
+                        "change_percent": round(change_pct, 2),
+                    }
+            except Exception as e:
+                summary[symbol] = {"name": name, "error": str(e)}
 
-            return summary
-
-        except Exception as e:
-            return {"error": str(e)}
+        return summary

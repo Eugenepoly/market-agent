@@ -434,28 +434,48 @@ def cli_agent_fundflow(args):
 
         # Market
         market = result.get("market", {})
-        if market.get("vix"):
-            vix_change = market.get("vix_change", 0)
-            sign = "+" if vix_change and vix_change > 0 else ""
-            print(f"\nVIX: {market['vix']} ({sign}{vix_change:.2f}%)" if vix_change else f"\nVIX: {market['vix']}")
+        if market:
+            print("\n📊 Market Summary:")
+            for symbol, info in market.items():
+                if isinstance(info, dict) and info.get("price"):
+                    change = info.get("change_percent", 0)
+                    sign = "+" if change and change > 0 else ""
+                    print(f"  {info.get('name', symbol)}: {info['price']} ({sign}{change:.2f}%)")
+
+        # Institutional
+        institutional = result.get("institutional", {})
+        if institutional:
+            print("\n🏦 Institutional Activity:")
+            for symbol, data in institutional.items():
+                inst_trans = data.get('inst_trans', 'N/A')
+                insider_trans = data.get('insider_trans', 'N/A')
+                short_float = data.get('short_float', 'N/A')
+                print(f"  {symbol}: 机构{inst_trans}, 内部人{insider_trans}, 做空{short_float}")
 
         # Options
         options = result.get("options", {})
         if options:
-            print("\nPut/Call Ratios:")
+            print("\n📈 Put/Call Ratios:")
             for symbol, data in options.items():
-                print(f"  {symbol}: {data.get('pc_ratio', 'N/A')} (OI), {data.get('pc_ratio_vol', 'N/A')} (Vol)")
+                pc = data.get('pc_ratio', 'N/A')
+                iv = data.get('avg_iv')
+                iv_str = f", IV={iv*100:.1f}%" if iv else ""
+                print(f"  {symbol}: P/C={pc}{iv_str}")
 
         # Crypto
         crypto = result.get("crypto", {})
         if crypto:
-            print(f"\nCrypto Fear & Greed: {crypto.get('fear_greed', 'N/A')} ({crypto.get('fear_greed_label', '')})")
+            fng = crypto.get('fear_greed')
+            fng_label = crypto.get('fear_greed_label', '')
+            if fng:
+                print(f"\n₿ Crypto Fear & Greed: {fng} ({fng_label})")
+
             funding = crypto.get("funding_rates", {})
             if funding:
-                print("Funding Rates:")
+                print("  Funding Rates:")
                 for symbol, rate in funding.items():
                     if rate:
-                        print(f"  {symbol}: {rate*100:.4f}%")
+                        print(f"    {symbol}: {rate*100:.4f}%")
 
         # Save result
         import json
