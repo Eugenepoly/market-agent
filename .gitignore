@@ -31,3 +31,10 @@ Thumbs.db
 
 # Local reports output
 reports/
+
+# Workflow state
+.workflow_state/
+
+# Social content directories
+pending_social_content/
+approved_social_content/

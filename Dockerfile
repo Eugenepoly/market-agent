@@ -10,4 +10,4 @@ COPY . .
 ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 
-CMD ["functions-framework", "--target=main_handler", "--source=market_agent.py", "--port=8080"]
+CMD ["functions-framework", "--target=main_handler", "--source=main.py", "--port=8080"]
