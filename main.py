@@ -17,7 +17,7 @@ from flask import Request, jsonify
 
 from config import get_config
 from core import Orchestrator, WorkflowContext, WorkflowStatus
-from agents import ReportAgent, DeepAnalysisAgent, SocialAgent, MonitorAgent
+from agents import ReportAgent, DeepAnalysisAgent, SocialAgent, MonitorAgent, FundFlowAgent
 from workflows.daily_workflow import get_daily_workflow_factory
 
 
@@ -30,6 +30,7 @@ def create_orchestrator() -> Orchestrator:
     orchestrator.register_agent(DeepAnalysisAgent)
     orchestrator.register_agent(SocialAgent)
     orchestrator.register_agent(MonitorAgent)
+    orchestrator.register_agent(FundFlowAgent)
 
     # Register workflows
     orchestrator.register_workflow("daily", get_daily_workflow_factory())
@@ -157,6 +158,19 @@ def main_handler(request: Request):
             else:
                 context = WorkflowContext()
                 result = monitor.run(context)
+                return jsonify(result.to_dict()), 200
+
+        if path == "/agent/fundflow" and method == "POST":
+            data = request.get_json(silent=True) or {}
+            quick = data.get("quick", False)
+
+            fundflow = FundFlowAgent()
+            if quick:
+                result = fundflow.run_quick_check()
+                return jsonify(result), 200
+            else:
+                context = WorkflowContext()
+                result = fundflow.run(context)
                 return jsonify(result.to_dict()), 200
 
         # List workflows
@@ -404,6 +418,83 @@ def _cleanup_monitor_files(directory: str, prefix: str, max_files: int = 3) -> N
             pass
 
 
+def cli_agent_fundflow(args):
+    """Run fund flow agent via CLI."""
+    print("Running fund flow agent...")
+
+    fundflow = FundFlowAgent()
+
+    if args.quick:
+        # Quick check without LLM analysis
+        result = fundflow.run_quick_check()
+
+        print(f"\n{'='*50}")
+        print("FUND FLOW QUICK CHECK")
+        print(f"{'='*50}")
+
+        # Market
+        market = result.get("market", {})
+        if market.get("vix"):
+            vix_change = market.get("vix_change", 0)
+            sign = "+" if vix_change and vix_change > 0 else ""
+            print(f"\nVIX: {market['vix']} ({sign}{vix_change:.2f}%)" if vix_change else f"\nVIX: {market['vix']}")
+
+        # Options
+        options = result.get("options", {})
+        if options:
+            print("\nPut/Call Ratios:")
+            for symbol, data in options.items():
+                print(f"  {symbol}: {data.get('pc_ratio', 'N/A')} (OI), {data.get('pc_ratio_vol', 'N/A')} (Vol)")
+
+        # Crypto
+        crypto = result.get("crypto", {})
+        if crypto:
+            print(f"\nCrypto Fear & Greed: {crypto.get('fear_greed', 'N/A')} ({crypto.get('fear_greed_label', '')})")
+            funding = crypto.get("funding_rates", {})
+            if funding:
+                print("Funding Rates:")
+                for symbol, rate in funding.items():
+                    if rate:
+                        print(f"  {symbol}: {rate*100:.4f}%")
+
+        # Save result
+        import json
+        monitor_dir = "./data/fund_flows"
+        os.makedirs(monitor_dir, exist_ok=True)
+        from datetime import datetime
+        filename = f"{monitor_dir}/quick_check_{datetime.now().strftime('%Y%m%d_%H')}.json"
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+        print(f"\nResult saved to: {filename}")
+
+        _cleanup_monitor_files(monitor_dir, "quick_check_", max_files=3)
+
+    else:
+        # Full analysis with LLM
+        context = WorkflowContext()
+        result = fundflow.run(context)
+
+        if result.success:
+            output = result.output
+            print("\n" + "=" * 50)
+            print(output.get("analysis", "No analysis generated"))
+            print("=" * 50)
+
+            # Save analysis
+            monitor_dir = "./data/fund_flows"
+            os.makedirs(monitor_dir, exist_ok=True)
+            from datetime import datetime
+            filename = f"{monitor_dir}/analysis_{datetime.now().strftime('%Y%m%d_%H')}.txt"
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(output.get("analysis", ""))
+            print(f"\nAnalysis saved to: {filename}")
+
+            _cleanup_monitor_files(monitor_dir, "analysis_", max_files=3)
+        else:
+            print(f"Error: {result.error}")
+            sys.exit(1)
+
+
 def cli_agent_monitor(args):
     """Run monitor agent via CLI."""
     print("Running VIP monitor agent...")
@@ -523,6 +614,10 @@ def main():
     monitor_parser = agent_subparsers.add_parser("monitor", help="Run VIP monitor agent")
     monitor_parser.add_argument("--quick", action="store_true", help="Quick check without LLM analysis")
 
+    # agent fundflow
+    fundflow_parser = agent_subparsers.add_parser("fundflow", help="Run fund flow agent")
+    fundflow_parser.add_argument("--quick", action="store_true", help="Quick check without LLM analysis")
+
     args = parser.parse_args()
 
     # Set local mode for CLI
@@ -550,6 +645,8 @@ def main():
             cli_agent_social(args)
         elif args.agent_command == "monitor":
             cli_agent_monitor(args)
+        elif args.agent_command == "fundflow":
+            cli_agent_fundflow(args)
         else:
             agent_parser.print_help()
     else:

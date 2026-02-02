@@ -40,8 +40,11 @@ market_agent/
 │   ├── social/                # 社交媒体采集
 │   │   ├── x_collector.py     # X/Twitter (Nitter + Gemini)
 │   │   └── truth_collector.py # Truth Social
-│   ├── market/                # [TODO] 市场数据采集
-│   ├── crypto/                # [TODO] 链上数据采集
+│   ├── market/                # 市场数据采集
+│   │   ├── finviz_collector.py   # 机构持仓、内部人交易
+│   │   └── yahoo_collector.py    # 期权数据、Put/Call
+│   ├── crypto/                # 加密资金流
+│   │   └── coinglass_collector.py # 恐惧贪婪、资金费率、清算
 │   └── news/                  # [TODO] 新闻采集
 ├── workflows/
 │   ├── __init__.py
@@ -56,7 +59,8 @@ market_agent/
 │   └── social_prompt.py
 ├── data/                      # 采集数据存储 (不上传)
 │   ├── social_posts/          # 原始帖子 (保留3小时)
-│   └── monitor/               # 监控分析报告
+│   ├── monitor/               # VIP监控分析报告
+│   └── fund_flows/            # 资金流向数据
 ├── requirements.txt
 ├── Dockerfile
 ├── .env                       # 本地环境变量 (不上传)
@@ -76,6 +80,7 @@ market_agent/
 | DeepAnalysisAgent | 深度分析 | 报告 + 主题(可选) | 深度分析 | 否 |
 | SocialAgent | 生成推文草稿 | 报告/分析 | X 推文草稿 | **是** |
 | MonitorAgent | VIP 社交监控 | 无 | 监控报告 + 告警 | 否 |
+| FundFlowAgent | 资金流向分析 | 无 | 机构/期权/加密资金流分析 | 否 |
 
 ## 环境变量
 | 变量名 | 说明 | 默认值 |
@@ -140,6 +145,14 @@ python main.py agent monitor --quick
 
 # 完整分析（采集 + LLM 分析市场影响）
 python main.py agent monitor
+
+# === 资金流向 ===
+
+# 快速检查（期权P/C、恐惧贪婪指数、资金费率）
+python main.py agent fundflow --quick
+
+# 完整分析（机构持仓、期权、加密资金流）
+python main.py agent fundflow
 ```
 
 ### 本地 HTTP 运行 (functions-framework)
@@ -187,6 +200,7 @@ gcloud run services update market-agent \
 | `/agent/deep-analysis` | POST | 单独运行深度分析 Agent |
 | `/agent/social` | POST | 单独运行社交 Agent |
 | `/agent/monitor` | POST | 运行 VIP 监控 Agent |
+| `/agent/fundflow` | POST | 运行资金流向 Agent |
 
 ### 请求示例
 
@@ -294,6 +308,8 @@ python main.py workflow daily
 python main.py agent report
 python main.py agent monitor --quick    # VIP 快速监控
 python main.py agent monitor            # VIP 完整分析
+python main.py agent fundflow --quick   # 资金流快速检查
+python main.py agent fundflow           # 资金流完整分析
 cat reports/Market_Update_$(date +%Y-%m-%d).txt
 
 # === Cloud 测试 ===
