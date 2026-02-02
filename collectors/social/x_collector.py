@@ -136,14 +136,19 @@ class XCollector(BaseCollector):
             client = genai.Client(api_key=config.gemini_api_key)
 
             prompt = f"""
-Search for the most recent tweets/posts from @{handle} on X (Twitter) from the past 24 hours.
-For each post found, extract:
-1. The full text content
-2. Approximate timestamp
-3. Engagement metrics if visible (likes, retweets, replies)
+Search news and social media for recent statements, announcements, or posts by @{handle} in the past 24-48 hours.
 
-Format the response as a list of posts with clear separators.
-Focus only on original posts, not retweets.
+Look for:
+- News articles quoting their recent statements
+- Reports about their social media activity
+- Any market-moving comments they made
+
+Summarize the key points from what you find. Include:
+1. What they said or announced
+2. When (approximate date/time)
+3. Context and potential market impact
+
+If you find specific quotes, include them.
 """
 
             response = client.models.generate_content(

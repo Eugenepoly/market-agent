@@ -71,14 +71,19 @@ class TruthCollector(BaseCollector):
             client = genai.Client(api_key=config.gemini_api_key)
 
             prompt = f"""
-Search for the most recent posts from @{handle} on Truth Social from the past 24 hours.
-For each post found, extract:
-1. The full text content
-2. Approximate timestamp
-3. Any notable reactions or engagement
+Search news for recent Truth Social posts or statements by @{handle} (Donald Trump) in the past 24-48 hours.
 
-Format the response as a list of posts with clear separators.
-Focus on posts that might be market-moving or politically significant.
+Look for:
+- News articles reporting on his Truth Social posts
+- Quotes from his recent statements
+- Any policy announcements or market-moving comments
+
+Summarize the key points:
+1. What he posted or announced
+2. When (approximate date/time)
+3. Potential market or political impact
+
+Include specific quotes if available.
 """
 
             response = client.models.generate_content(

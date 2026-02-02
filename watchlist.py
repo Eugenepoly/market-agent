@@ -74,9 +74,9 @@ ALERT_KEYWORDS = {
 COLLECTOR_CONFIG = {
     # Nitter 实例列表 (X/Twitter 爬取)
     "nitter_instances": [
-        "https://nitter.privacydev.net",
+        "https://nitter.net",
         "https://nitter.poast.org",
-        "https://nitter.woodland.cafe",
+        "https://nitter.privacydev.net",
     ],
 
     # 采集频率 (分钟)
