@@ -1,4 +1,11 @@
-"""X (Twitter) collector using Nitter instances."""
+"""X (Twitter) collector using Nitter instances.
+
+TODO: 升级到 twitterapi.io
+- 官网: https://twitterapi.io
+- 需要 API key (付费)
+- 可用于采集推文和发布推文
+- 替换现有 Nitter + Gemini Search 方案
+"""
 
 import re
 import requests
