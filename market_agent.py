@@ -7,20 +7,22 @@ load_dotenv()
 import functions_framework
 from google import genai
 from google.genai import types
-from google.cloud import storage
 import datetime
 
 # 配置区
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "market-reports-bucket")
+LOCAL_OUTPUT_DIR = os.environ.get("LOCAL_OUTPUT_DIR", "./reports")
 
-@functions_framework.http
-def main_handler(request):
-    # 1. 初始化 Gemini
-    client = genai.Client(api_key=GEMINI_API_KEY)
 
-    # 2. 检索信息
-    prompt = """
+def is_local_mode():
+    """判断是否为本地运行模式"""
+    return os.environ.get("RUN_LOCAL", "false").lower() == "true"
+
+
+def get_prompt():
+    """获取分析提示词"""
+    return """
 ### 角色：全球宏观策略分析师 (Global Macro Strategist)
 
 ### 第一阶段：动态市场扫描 (Dynamic Discovery)
@@ -61,25 +63,55 @@ def main_handler(request):
 [建议将哪些具体数据点作为新 Source 录入，以修正原有的 2026 估值模型]
 """.replace("[日期]", str(datetime.date.today()))
 
-    # 启用 Google Search 工具获取实时数据
+
+def generate_report():
+    """生成市场分析报告"""
+    client = genai.Client(api_key=GEMINI_API_KEY)
+
     response = client.models.generate_content(
         model='gemini-2.0-flash',
-        contents=prompt,
+        contents=get_prompt(),
         config=types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())]
         )
     )
-    report_md = response.text
+    return response.text
 
-    # 3. 上传到 Cloud Storage (覆盖同名文件)
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(GCS_BUCKET)
 
+def save_report(report_md):
+    """保存报告到本地或 Cloud Storage"""
     filename = f"Market_Update_{datetime.date.today()}.txt"
-    blob = bucket.blob(filename)
-    blob.upload_from_string(report_md, content_type='text/plain; charset=utf-8')
 
-    # 生成公开访问链接
-    public_url = f"https://storage.googleapis.com/{GCS_BUCKET}/{filename}"
+    if is_local_mode():
+        # 本地模式：保存到本地文件
+        os.makedirs(LOCAL_OUTPUT_DIR, exist_ok=True)
+        filepath = os.path.join(LOCAL_OUTPUT_DIR, filename)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(report_md)
+        return f"Success: {filename} saved to {filepath}"
+    else:
+        # Cloud 模式：上传到 Cloud Storage
+        from google.cloud import storage
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(GCS_BUCKET)
+        blob = bucket.blob(filename)
+        blob.upload_from_string(report_md, content_type='text/plain; charset=utf-8')
+        public_url = f"https://storage.googleapis.com/{GCS_BUCKET}/{filename}"
+        return f"Success: {filename} uploaded to {public_url}"
 
-    return f"Success: {filename} uploaded to {public_url}", 200
+
+@functions_framework.http
+def main_handler(request):
+    """HTTP 请求处理入口"""
+    report_md = generate_report()
+    result = save_report(report_md)
+    return result, 200
+
+
+# 本地直接运行入口
+if __name__ == "__main__":
+    os.environ["RUN_LOCAL"] = "true"
+    print("Running market agent locally...")
+    report_md = generate_report()
+    result = save_report(report_md)
+    print(result)
