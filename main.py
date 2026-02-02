@@ -18,6 +18,7 @@ from flask import Request, jsonify
 from config import get_config
 from core import Orchestrator, WorkflowContext, WorkflowStatus
 from agents import ReportAgent, DeepAnalysisAgent, SocialAgent, MonitorAgent, FundFlowAgent
+from agents.onchain_agent import OnchainAgent
 from workflows.daily_workflow import get_daily_workflow_factory
 
 
@@ -31,6 +32,7 @@ def create_orchestrator() -> Orchestrator:
     orchestrator.register_agent(SocialAgent)
     orchestrator.register_agent(MonitorAgent)
     orchestrator.register_agent(FundFlowAgent)
+    orchestrator.register_agent(OnchainAgent)
 
     # Register workflows
     orchestrator.register_workflow("daily", get_daily_workflow_factory())
@@ -172,6 +174,18 @@ def main_handler(request: Request):
                 context = WorkflowContext()
                 result = fundflow.run(context)
                 return jsonify(result.to_dict()), 200
+
+        if path == "/agent/onchain" and method == "POST":
+            data = request.get_json(silent=True) or {}
+            quick = data.get("quick", False)
+
+            onchain = OnchainAgent()
+            result = onchain.run(quick=quick)
+            return jsonify({
+                "success": result.success,
+                "output": result.output,
+                "error": result.error,
+            }), 200
 
         # List workflows
         if path == "/workflows" and method == "GET":
@@ -581,6 +595,25 @@ def cli_agent_monitor(args):
             sys.exit(1)
 
 
+def cli_agent_onchain(args):
+    """Run on-chain monitor agent via CLI."""
+    print("Running on-chain monitor agent...")
+
+    onchain = OnchainAgent()
+    result = onchain.run(quick=args.quick)
+
+    if result.success:
+        print("\n" + "=" * 50)
+        print(result.output)
+        print("=" * 50)
+
+        if result.error:
+            print(f"\n⚠️ Some errors occurred: {result.error}")
+    else:
+        print(f"Error: {result.error}")
+        sys.exit(1)
+
+
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -638,6 +671,10 @@ def main():
     fundflow_parser = agent_subparsers.add_parser("fundflow", help="Run fund flow agent")
     fundflow_parser.add_argument("--quick", action="store_true", help="Quick check without LLM analysis")
 
+    # agent onchain
+    onchain_parser = agent_subparsers.add_parser("onchain", help="Run on-chain monitor agent")
+    onchain_parser.add_argument("--quick", action="store_true", help="Quick check without LLM analysis")
+
     args = parser.parse_args()
 
     # Set local mode for CLI
@@ -667,6 +704,8 @@ def main():
             cli_agent_monitor(args)
         elif args.agent_command == "fundflow":
             cli_agent_fundflow(args)
+        elif args.agent_command == "onchain":
+            cli_agent_onchain(args)
         else:
             agent_parser.print_help()
     else:

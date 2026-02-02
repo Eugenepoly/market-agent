@@ -6,6 +6,7 @@
 - 深度分析（支持指定主题或自动提取）
 - 社交媒体推文草稿生成（需人工审核）
 - **大V社交监控**（X/Twitter、Truth Social）
+- **链上数据监控**（巨鲸转账、交易所储备）
 
 支持本地运行和 Cloud Run 部署两种模式。
 
@@ -33,7 +34,8 @@ market_agent/
 │   ├── report_agent.py        # 报告生成 Agent
 │   ├── deep_analysis_agent.py # 深度分析 Agent
 │   ├── social_agent.py        # 社交发布 Agent
-│   └── monitor_agent.py       # VIP 监控 Agent
+│   ├── monitor_agent.py       # VIP 监控 Agent
+│   └── onchain_agent.py       # 链上监控 Agent
 ├── collectors/                # 数据采集层
 │   ├── __init__.py
 │   ├── base_collector.py      # 采集器基类
@@ -44,7 +46,8 @@ market_agent/
 │   │   ├── finviz_collector.py   # 机构持仓、内部人交易
 │   │   └── yahoo_collector.py    # 期权数据、Put/Call
 │   ├── crypto/                # 加密资金流
-│   │   └── coinglass_collector.py # 恐惧贪婪、资金费率、清算
+│   │   ├── coinglass_collector.py # 恐惧贪婪、资金费率、清算
+│   │   └── onchain_collector.py   # 巨鲸转账、交易所储备
 │   └── news/                  # [TODO] 新闻采集
 ├── workflows/
 │   ├── __init__.py
@@ -60,7 +63,8 @@ market_agent/
 ├── data/                      # 采集数据存储 (不上传)
 │   ├── social_posts/          # 原始帖子 (保留3小时)
 │   ├── monitor/               # VIP监控分析报告
-│   └── fund_flows/            # 资金流向数据
+│   ├── fund_flows/            # 资金流向数据
+│   └── onchain/               # 链上监控数据
 ├── requirements.txt
 ├── Dockerfile
 ├── .env                       # 本地环境变量 (不上传)
@@ -81,6 +85,7 @@ market_agent/
 | SocialAgent | 生成推文草稿 | 报告/分析 | X 推文草稿 | **是** |
 | MonitorAgent | VIP 社交监控 | 无 | 监控报告 + 告警 | 否 |
 | FundFlowAgent | 资金流向分析 | 无 | 机构/期权/加密资金流分析 | 否 |
+| OnchainAgent | 链上数据监控 | 无 | 巨鲸转账/交易所储备分析 | 否 |
 
 ## 环境变量
 | 变量名 | 说明 | 默认值 |
@@ -153,6 +158,14 @@ python main.py agent fundflow --quick
 
 # 完整分析（机构持仓、期权、加密资金流）
 python main.py agent fundflow
+
+# === 链上监控 ===
+
+# 快速检查（大额BTC转账、巨鲸地址余额）
+python main.py agent onchain --quick
+
+# 完整分析（巨鲸转账 + 交易所储备 + LLM 分析）
+python main.py agent onchain
 ```
 
 ### 本地 HTTP 运行 (functions-framework)
@@ -201,6 +214,7 @@ gcloud run services update market-agent \
 | `/agent/social` | POST | 单独运行社交 Agent |
 | `/agent/monitor` | POST | 运行 VIP 监控 Agent |
 | `/agent/fundflow` | POST | 运行资金流向 Agent |
+| `/agent/onchain` | POST | 运行链上监控 Agent |
 
 ### 请求示例
 
@@ -278,6 +292,18 @@ ALERT_KEYWORDS = {
 }
 ```
 
+### 链上监控配置
+```python
+ONCHAIN_CONFIG = {
+    "min_btc_value": 100,      # 大额 BTC 转账阈值
+    "min_eth_value": 1000,     # 大额 ETH 转账阈值
+    "whale_addresses": {
+        "btc": ["34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo", ...],  # 巨鲸地址
+        "eth": ["0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8", ...],
+    },
+}
+```
+
 ### 数据保留策略
 - 每小时保存一份采集数据
 - 同一小时内重复运行会覆盖
@@ -310,6 +336,8 @@ python main.py agent monitor --quick    # VIP 快速监控
 python main.py agent monitor            # VIP 完整分析
 python main.py agent fundflow --quick   # 资金流快速检查
 python main.py agent fundflow           # 资金流完整分析
+python main.py agent onchain --quick    # 链上快速检查
+python main.py agent onchain            # 链上完整分析
 cat reports/Market_Update_$(date +%Y-%m-%d).txt
 
 # === Cloud 测试 ===

@@ -88,3 +88,36 @@ COLLECTOR_CONFIG = {
     # 数据保留天数
     "data_retention_days": 7,
 }
+
+# =============================================================================
+# 链上监控配置 (On-chain Monitoring)
+# =============================================================================
+
+ONCHAIN_CONFIG = {
+    # 大额交易阈值
+    "min_btc_value": 100,      # BTC 最小值
+    "min_eth_value": 1000,     # ETH 最小值
+    "min_usdt_value": 10_000_000,  # USDT 最小值 (1000万)
+
+    # 已知巨鲸地址 (可添加更多)
+    "whale_addresses": {
+        "btc": [
+            # Binance Cold Wallet
+            "34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo",
+            # Bitfinex Cold Wallet
+            "bc1qgdjqv0av3q56jvd82tkdjpy7gdp9ut8tlqmgrpmv24sq90ecnvqqjwvw97",
+        ],
+        "eth": [
+            # Binance
+            "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",
+            # Wrapped BTC
+            "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+        ],
+    },
+
+    # 监控的交易所 (用于识别交易所地址)
+    "exchanges": [
+        "binance", "coinbase", "kraken", "okx", "bybit",
+        "bitfinex", "huobi", "kucoin", "gemini",
+    ],
+}
