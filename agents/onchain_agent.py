@@ -58,6 +58,8 @@ Generate a report with the following structure:
 - 对短期市场的影响判断
 
 Keep the report concise and actionable.
+
+IMPORTANT: Do NOT include any citation markers like [cite: ...] or [citation: ...] in your response.
 """
 
     def run(self, context: WorkflowContext = None, quick: bool = False) -> AgentResult:
@@ -183,6 +185,8 @@ Generate a report with the following structure:
 - 对短期市场的影响判断
 
 Keep the report concise and actionable.
+
+IMPORTANT: Do NOT include any citation markers like [cite: ...] or [citation: ...] in your response.
 """
 
             response = client.models.generate_content(
