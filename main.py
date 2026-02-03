@@ -526,7 +526,7 @@ def cli_agent_fundflow(args):
             monitor_dir = "./data/fund_flows"
             os.makedirs(monitor_dir, exist_ok=True)
             from datetime import datetime
-            filename = f"{monitor_dir}/analysis_{datetime.now().strftime('%Y%m%d_%H')}.txt"
+            filename = f"{monitor_dir}/analysis_{datetime.now().strftime('%Y%m%d_%H')}.md"
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(output.get("analysis", ""))
             print(f"\nAnalysis saved to: {filename}")
@@ -591,7 +591,7 @@ def cli_agent_monitor(args):
             monitor_dir = "./data/monitor"
             os.makedirs(monitor_dir, exist_ok=True)
             from datetime import datetime
-            filename = f"{monitor_dir}/analysis_{datetime.now().strftime('%Y%m%d_%H')}.txt"
+            filename = f"{monitor_dir}/analysis_{datetime.now().strftime('%Y%m%d_%H')}.md"
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(output.get("analysis", ""))
             print(f"\nAnalysis saved to: {filename}")

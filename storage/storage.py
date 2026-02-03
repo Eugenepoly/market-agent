@@ -34,7 +34,7 @@ class Storage:
             The path or URL where the report was saved.
         """
         if filename is None:
-            filename = f"Market_Update_{datetime.date.today()}.txt"
+            filename = f"Market_Update_{datetime.date.today()}.md"
 
         if self.config.is_local_mode:
             return self._save_local(content, filename, self.config.local_output_dir)
@@ -52,7 +52,7 @@ class Storage:
             The path or URL where the analysis was saved.
         """
         if filename is None:
-            filename = f"Deep_Analysis_{datetime.date.today()}.txt"
+            filename = f"Deep_Analysis_{datetime.date.today()}.md"
 
         if self.config.is_local_mode:
             analysis_dir = os.path.join(self.config.local_output_dir, "analysis")
@@ -70,7 +70,7 @@ class Storage:
         Returns:
             The path where the draft was saved.
         """
-        filename = f"draft_{workflow_id}_{datetime.date.today()}.txt"
+        filename = f"draft_{workflow_id}_{datetime.date.today()}.md"
 
         if self.config.is_local_mode:
             return self._save_local(content, filename, self.config.pending_approval_dir)
@@ -87,7 +87,7 @@ class Storage:
         Returns:
             The path where the draft was saved.
         """
-        filename = f"approved_{workflow_id}_{datetime.date.today()}.txt"
+        filename = f"approved_{workflow_id}_{datetime.date.today()}.md"
 
         if self.config.is_local_mode:
             return self._save_local(content, filename, self.config.approved_drafts_dir)
@@ -103,7 +103,7 @@ class Storage:
         Returns:
             The draft content or None if not found.
         """
-        filename = f"draft_{workflow_id}_{datetime.date.today()}.txt"
+        filename = f"draft_{workflow_id}_{datetime.date.today()}.md"
 
         if self.config.is_local_mode:
             filepath = os.path.join(self.config.pending_approval_dir, filename)
@@ -128,7 +128,7 @@ class Storage:
         Returns:
             True if deleted successfully.
         """
-        filename = f"draft_{workflow_id}_{datetime.date.today()}.txt"
+        filename = f"draft_{workflow_id}_{datetime.date.today()}.md"
 
         if self.config.is_local_mode:
             filepath = os.path.join(self.config.pending_approval_dir, filename)
@@ -174,5 +174,5 @@ class Storage:
         """
         bucket = self.gcs_client.bucket(self.config.gcs_bucket)
         blob = bucket.blob(blob_name)
-        blob.upload_from_string(content, content_type="text/plain; charset=utf-8")
+        blob.upload_from_string(content, content_type="text/markdown; charset=utf-8")
         return f"https://storage.googleapis.com/{self.config.gcs_bucket}/{blob_name}"

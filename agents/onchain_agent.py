@@ -208,7 +208,7 @@ IMPORTANT: Do NOT include any citation markers like [cite: ...] or [citation: ..
         output_dir = os.path.join(self.data_dir, "onchain")
         os.makedirs(output_dir, exist_ok=True)
 
-        filename = f"analysis_{timestamp}.txt"
+        filename = f"analysis_{timestamp}.md"
         filepath = os.path.join(output_dir, filename)
 
         with open(filepath, "w", encoding="utf-8") as f:

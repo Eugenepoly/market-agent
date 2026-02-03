@@ -1,5 +1,6 @@
 """Fund Flow Agent - analyzes institutional and retail fund flows."""
 
+import os
 import json
 from datetime import datetime
 from typing import Any, List, Optional
@@ -276,11 +277,15 @@ class FundFlowAgent(BaseAgent):
 
             analysis = response.text
 
+            # Save analysis as markdown
+            filepath = self._save_analysis(analysis)
+
             return AgentResult(
                 agent_name=self.name,
                 success=True,
                 output={
                     "analysis": analysis,
+                    "filepath": filepath,
                     "data_summary": {
                         "stocks_collected": len(collected.get("stocks", [])),
                         "has_crypto_data": "crypto" in collected,
@@ -364,3 +369,31 @@ class FundFlowAgent(BaseAgent):
                 }
 
         return summary
+
+    def _save_analysis(self, analysis: str) -> str:
+        """Save analysis report as markdown file."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H")
+        output_dir = os.path.join(self.data_dir, "fund_flows")
+        os.makedirs(output_dir, exist_ok=True)
+
+        filename = f"analysis_{timestamp}.md"
+        filepath = os.path.join(output_dir, filename)
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(analysis)
+
+        # Cleanup old files (keep last 3)
+        self._cleanup_old_files(output_dir, "analysis_", max_files=3)
+
+        return filepath
+
+    def _cleanup_old_files(self, directory: str, prefix: str, max_files: int = 3):
+        """Remove old files, keeping only the most recent ones."""
+        try:
+            files = [f for f in os.listdir(directory) if f.startswith(prefix) and f.endswith(".md")]
+            if len(files) > max_files:
+                files.sort()
+                for filename in files[:-max_files]:
+                    os.remove(os.path.join(directory, filename))
+        except Exception:
+            pass

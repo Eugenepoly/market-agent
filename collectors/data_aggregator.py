@@ -45,8 +45,8 @@ class DataAggregator:
             return None
 
     def _get_latest_analysis(self, subdir: str, prefix: str = "analysis_") -> Optional[str]:
-        """Get latest analysis text file content."""
-        pattern = os.path.join(self.data_dir, subdir, f"{prefix}*.txt")
+        """Get latest analysis markdown file content."""
+        pattern = os.path.join(self.data_dir, subdir, f"{prefix}*.md")
         files = glob.glob(pattern)
         if not files:
             return None
