@@ -1,6 +1,6 @@
 """Report Agent - generates daily market analysis reports."""
 
-from core.base_agent import BaseAgent
+from core.base_agent import BaseAgent, AgentResult
 from core.state import WorkflowContext
 from prompts import get_report_prompt
 from collectors.data_aggregator import DataAggregator
@@ -12,14 +12,16 @@ class ReportAgent(BaseAgent):
     name = "report_agent"
     requires_approval = False
 
-    def __init__(self, data_dir: str = "./data"):
+    def __init__(self, data_dir: str = "./data", send_email: bool = True):
         """Initialize the report agent.
 
         Args:
             data_dir: Directory containing collected data.
+            send_email: Whether to send email after generating report.
         """
         super().__init__()
         self.data_aggregator = DataAggregator(data_dir)
+        self.send_email = send_email
 
     def get_prompt(self, context: WorkflowContext) -> str:
         """Get the market analysis prompt with collected data.
@@ -34,3 +36,25 @@ class ReportAgent(BaseAgent):
         collected_data = self.data_aggregator.format_for_prompt()
 
         return get_report_prompt(collected_data=collected_data)
+
+    def run(self, context: WorkflowContext) -> AgentResult:
+        """Run the report agent and optionally send email.
+
+        Args:
+            context: The workflow context.
+
+        Returns:
+            AgentResult with the generated report.
+        """
+        # Generate report using parent class
+        result = super().run(context)
+
+        # Send email if enabled and report was generated successfully
+        if self.send_email and result.success and result.output:
+            try:
+                from services.email_service import send_market_report
+                send_market_report(result.output)
+            except Exception as e:
+                print(f"⚠️ Failed to send email: {e}")
+
+        return result
