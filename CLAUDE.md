@@ -239,13 +239,19 @@ curl -X POST http://localhost:8080/workflow/{id}/reject \
 
 ### 每日工作流 (daily)
 ```
-1. ReportAgent.run() → 生成市场报告 → 保存到 Storage
-2. [可选] DeepAnalysisAgent.run() → 深度分析 → 保存
-3. SocialAgent.run() → 生成推文草稿
-4. 暂停，等待审核 (status: waiting_approval)
-5. 用户审核 → approve/reject
-6. 如果通过 → 保存推文草稿到 approved_social_content 目录供用户复制
+1. [默认] DataCollectionAgent.run() → 采集 VIP社交/资金流向/链上数据
+2. ReportAgent.run() → 生成市场报告 (整合采集的数据) → 保存到 Storage
+3. [可选] DeepAnalysisAgent.run() → 深度分析 → 保存
+4. SocialAgent.run() → 生成推文草稿
+5. 暂停，等待审核 (status: waiting_approval)
+6. 用户审核 → approve/reject
+7. 如果通过 → 保存推文草稿到 approved_social_content 目录供用户复制
 ```
+
+CLI 选项：
+- `--skip-collection`: 跳过数据采集步骤（使用已有数据）
+- `--full-collection`: 完整采集（含 LLM 分析，更慢但更详细）
+- `--skip-analysis`: 跳过深度分析步骤
 
 ### 审核流程
 - **本地模式**: 生成草稿后显示在终端，同时保存到 `pending_social_content/` 目录
