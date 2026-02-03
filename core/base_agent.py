@@ -8,6 +8,7 @@ from google.genai import types
 
 from config import get_config
 from core.state import WorkflowContext, AgentResult
+from core.rate_limiter import retry_with_backoff
 
 
 class BaseAgent(ABC):
@@ -54,16 +55,7 @@ class BaseAgent(ABC):
         """
         try:
             prompt = self.get_prompt(context)
-            config_kwargs = {}
-            tools = self.get_tools()
-            if tools:
-                config_kwargs["tools"] = tools
-
-            response = self.client.models.generate_content(
-                model=self.config.model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(**config_kwargs) if config_kwargs else None,
-            )
+            response = self._call_model(prompt)
 
             output = self.process_response(response.text, context)
 
@@ -78,6 +70,27 @@ class BaseAgent(ABC):
                 success=False,
                 error=str(e),
             )
+
+    @retry_with_backoff(max_retries=3, base_delay=2.0)
+    def _call_model(self, prompt: str):
+        """Call the model with retry logic.
+
+        Args:
+            prompt: The prompt to send.
+
+        Returns:
+            Model response.
+        """
+        config_kwargs = {}
+        tools = self.get_tools()
+        if tools:
+            config_kwargs["tools"] = tools
+
+        return self.client.models.generate_content(
+            model=self.config.model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(**config_kwargs) if config_kwargs else None,
+        )
 
     def process_response(self, response_text: str, context: WorkflowContext) -> Any:
         """Process the model response.
