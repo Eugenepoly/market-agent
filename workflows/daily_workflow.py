@@ -25,6 +25,7 @@ class DailyWorkflow:
         analysis_topic: Optional[str] = None,
         collect_data: bool = True,
         quick_collection: bool = False,
+        test_mode: bool = False,
     ) -> List[BaseAgent]:
         """Create the list of agents for this workflow.
 
@@ -33,6 +34,7 @@ class DailyWorkflow:
             analysis_topic: Optional topic for deep analysis.
             collect_data: Whether to run data collection first.
             quick_collection: If True, run quick data collection without LLM analysis.
+            test_mode: If True, only send email to first recipient.
 
         Returns:
             List of agent instances.
@@ -44,7 +46,7 @@ class DailyWorkflow:
             agents.append(DataCollectionAgent(quick=quick_collection))
 
         # Step 2: Report generation (uses collected data)
-        agents.append(ReportAgent())
+        agents.append(ReportAgent(test_mode=test_mode))
 
         # Step 3: Deep analysis (optional)
         if include_analysis:
@@ -61,6 +63,7 @@ def get_daily_workflow_factory(
     analysis_topic: Optional[str] = None,
     collect_data: bool = True,
     quick_collection: bool = True,
+    test_mode: bool = False,
 ):
     """Get a factory function for the daily workflow.
 
@@ -69,6 +72,7 @@ def get_daily_workflow_factory(
         analysis_topic: Optional analysis topic.
         collect_data: Whether to collect data before report.
         quick_collection: If True, run quick data collection.
+        test_mode: If True, only send email to first recipient.
 
     Returns:
         A callable that creates the workflow agents.
@@ -79,5 +83,6 @@ def get_daily_workflow_factory(
             analysis_topic=analysis_topic,
             collect_data=collect_data,
             quick_collection=quick_collection,
+            test_mode=test_mode,
         )
     return factory

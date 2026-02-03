@@ -82,6 +82,7 @@ def main_handler(request: Request):
             topic = data.get("topic")
             collect_data = data.get("collect_data", True)
             quick_collection = data.get("quick_collection", True)
+            test_mode = data.get("test_mode", False)
 
             # Update workflow factory with options
             orchestrator.register_workflow(
@@ -91,6 +92,7 @@ def main_handler(request: Request):
                     analysis_topic=topic,
                     collect_data=collect_data,
                     quick_collection=quick_collection,
+                    test_mode=test_mode,
                 )
             )
 
