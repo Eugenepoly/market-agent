@@ -179,8 +179,11 @@ python main.py agent onchain
 
 # === 邮件发送 ===
 
-# 发送最新日报（HTML 格式）
+# 发送最新日报（HTML 格式，发给所有收件人）
 python main.py email send
+
+# 测试模式（只发给第一个收件人）
+python main.py email send --test
 
 # 发送指定报告文件
 python main.py email send --file ./reports/Market_Update_2026-02-02.md
@@ -422,7 +425,8 @@ python main.py agent fundflow --quick   # 资金流快速检查
 python main.py agent fundflow           # 资金流完整分析
 python main.py agent onchain --quick    # 链上快速检查
 python main.py agent onchain            # 链上完整分析
-python main.py email send               # 发送最新日报邮件
+python main.py email send               # 发送最新日报邮件（所有收件人）
+python main.py email send --test        # 测试模式（只发第一个收件人）
 cat reports/Market_Update_$(date +%Y-%m-%d).md
 
 # === Cloud 测试 ===
