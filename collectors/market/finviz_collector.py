@@ -16,6 +16,9 @@ class FinvizCollector(BaseCollector):
     name = "finviz_collector"
     source = "finviz"
 
+    # ETFs don't have insider/institutional data on Finviz
+    ETF_SYMBOLS = {"GLD", "SLV", "SPY", "QQQ", "IWM", "EEM", "TLT", "HYG", "LQD"}
+
     def __init__(self, data_dir: str = "./data"):
         """Initialize the Finviz collector."""
         super().__init__(data_dir)
@@ -164,14 +167,19 @@ class FinvizCollector(BaseCollector):
 
     def collect_symbol(self, symbol: str) -> Dict[str, Any]:
         """Collect all available data for a symbol."""
-        return {
+        data = {
             "symbol": symbol,
             "quote": self._get_quote_data(symbol),
-            "insider_trading": self._get_insider_trading(symbol),
-            "institutional": self._get_institutional_ownership(symbol),
-            "analyst": self._get_analyst_ratings(symbol),
             "collected_at": datetime.utcnow().isoformat(),
         }
+
+        # Skip insider/institutional data for ETFs
+        if symbol.upper() not in self.ETF_SYMBOLS:
+            data["insider_trading"] = self._get_insider_trading(symbol)
+            data["institutional"] = self._get_institutional_ownership(symbol)
+            data["analyst"] = self._get_analyst_ratings(symbol)
+
+        return data
 
     def collect(self, symbols: Optional[List[str]] = None) -> CollectorResult:
         """Collect fund flow data for symbols.

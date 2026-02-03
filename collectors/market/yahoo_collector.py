@@ -14,6 +14,9 @@ class YahooCollector(BaseCollector):
     name = "yahoo_collector"
     source = "yahoo_finance"
 
+    # ETFs don't have fundamentals/institutional data
+    ETF_SYMBOLS = {"GLD", "SLV", "SPY", "QQQ", "IWM", "EEM", "TLT", "HYG", "LQD"}
+
     def __init__(self, data_dir: str = "./data"):
         """Initialize the Yahoo Finance collector."""
         super().__init__(data_dir)
@@ -125,13 +128,18 @@ class YahooCollector(BaseCollector):
 
     def collect_symbol(self, symbol: str) -> Dict[str, Any]:
         """Collect all available data for a symbol."""
-        return {
+        data = {
             "symbol": symbol,
             "quote": self._get_quote(symbol),
             "options": self._get_options_data(symbol),
-            "statistics": self._get_key_statistics(symbol),
             "collected_at": datetime.utcnow().isoformat(),
         }
+
+        # Skip statistics for ETFs (no fundamentals data available)
+        if symbol.upper() not in self.ETF_SYMBOLS:
+            data["statistics"] = self._get_key_statistics(symbol)
+
+        return data
 
     def collect(self, symbols: Optional[List[str]] = None) -> CollectorResult:
         """Collect market data for symbols.
