@@ -368,7 +368,161 @@ class FundFlowAgent(BaseAgent):
                     if isinstance(v, dict)
                 }
 
+        # Save markdown summary
+        self._save_fund_flow_summary(summary)
+
         return summary
+
+    def _save_fund_flow_summary(self, summary: dict) -> str:
+        """Save fund flow data as a markdown summary."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H")
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+        output_dir = os.path.join(self.data_dir, "fund_flows")
+        os.makedirs(output_dir, exist_ok=True)
+
+        lines = [
+            f"# 资金流向数据摘要 [{current_time}]",
+            "",
+        ]
+
+        # Market overview
+        market = summary.get("market", {})
+        if market:
+            lines.extend([
+                "## 📊 市场概览",
+                "",
+                "| 指数 | 价格 | 涨跌幅 | 状态 |",
+                "|------|------|--------|------|",
+            ])
+            for symbol, info in market.items():
+                name = info.get("name", symbol)
+                price = info.get("price", "N/A")
+                change = info.get("change_percent", 0)
+                if change is None:
+                    change = 0
+                sign = "+" if change > 0 else ""
+                # Status emoji
+                if change > 1:
+                    status = "🟢 强势"
+                elif change > 0:
+                    status = "🟢 上涨"
+                elif change < -1:
+                    status = "🔴 弱势"
+                elif change < 0:
+                    status = "🔴 下跌"
+                else:
+                    status = "⚪ 持平"
+                lines.append(f"| {name} | {price} | {sign}{change:.2f}% | {status} |")
+            lines.append("")
+
+        # Options data
+        options = summary.get("options", {})
+        if options:
+            lines.extend([
+                "## 📈 期权数据",
+                "",
+                "| 标的 | P/C Ratio (OI) | P/C Ratio (Vol) | 隐含波动率 | 信号 |",
+                "|------|----------------|-----------------|------------|------|",
+            ])
+            for symbol, info in options.items():
+                pc_ratio = info.get("pc_ratio", "N/A")
+                pc_vol = info.get("pc_ratio_vol", "N/A")
+                iv = info.get("avg_iv")
+                iv_str = f"{iv*100:.1f}%" if iv else "N/A"
+                # Signal interpretation
+                if isinstance(pc_ratio, (int, float)):
+                    if pc_ratio > 1.2:
+                        signal = "🔴 偏空"
+                    elif pc_ratio < 0.7:
+                        signal = "🟢 偏多"
+                    else:
+                        signal = "⚪ 中性"
+                else:
+                    signal = "-"
+                pc_ratio_str = f"{pc_ratio:.3f}" if isinstance(pc_ratio, float) else str(pc_ratio)
+                pc_vol_str = f"{pc_vol:.3f}" if isinstance(pc_vol, float) else str(pc_vol)
+                lines.append(f"| {symbol} | {pc_ratio_str} | {pc_vol_str} | {iv_str} | {signal} |")
+            lines.append("")
+
+        # Institutional activity
+        institutional = summary.get("institutional", {})
+        if institutional:
+            lines.extend([
+                "## 🏦 机构持仓",
+                "",
+                "| 标的 | 机构持仓 | 机构变动 | 内部人交易 | 做空比例 |",
+                "|------|----------|----------|------------|----------|",
+            ])
+            for symbol, info in institutional.items():
+                inst_own = info.get("inst_own", "N/A")
+                inst_trans = info.get("inst_trans", "N/A")
+                insider_trans = info.get("insider_trans", "N/A")
+                short_float = info.get("short_float", "N/A")
+                lines.append(f"| {symbol} | {inst_own} | {inst_trans} | {insider_trans} | {short_float} |")
+            lines.append("")
+
+        # Crypto metrics
+        crypto = summary.get("crypto", {})
+        if crypto:
+            lines.extend([
+                "## ₿ 加密市场",
+                "",
+            ])
+            fng = crypto.get("fear_greed")
+            fng_label = crypto.get("fear_greed_label", "")
+            if fng is not None:
+                # Fear & Greed emoji
+                if fng <= 25:
+                    fng_emoji = "😱"
+                elif fng <= 45:
+                    fng_emoji = "😨"
+                elif fng <= 55:
+                    fng_emoji = "😐"
+                elif fng <= 75:
+                    fng_emoji = "😊"
+                else:
+                    fng_emoji = "🤑"
+                lines.append(f"- **恐惧贪婪指数**: {fng} ({fng_label}) {fng_emoji}")
+                lines.append("")
+
+            funding = crypto.get("funding_rates", {})
+            if funding:
+                lines.append("- **资金费率**:")
+                for symbol, rate in funding.items():
+                    if rate is not None:
+                        rate_pct = rate * 100
+                        sign = "+" if rate_pct > 0 else ""
+                        # Interpretation
+                        if rate_pct > 0.01:
+                            interp = "(多头拥挤)"
+                        elif rate_pct < -0.01:
+                            interp = "(空头拥挤)"
+                        else:
+                            interp = "(中性)"
+                        lines.append(f"  - {symbol}: {sign}{rate_pct:.4f}% {interp}")
+                lines.append("")
+
+        # Collection stats
+        lines.extend([
+            "## 📋 采集信息",
+            "",
+            f"- **采集时间**: {summary.get('timestamp', '')}",
+            f"- **股票数据**: {len(options)} 个标的",
+            f"- **机构数据**: {len(institutional)} 个标的",
+            "",
+        ])
+
+        # Save file
+        filename = f"summary_{timestamp}.md"
+        filepath = os.path.join(output_dir, filename)
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+        # Cleanup old files
+        self._cleanup_old_files(output_dir, "summary_", max_files=3)
+
+        return filepath
 
     def _save_analysis(self, analysis: str) -> str:
         """Save analysis report as markdown file."""

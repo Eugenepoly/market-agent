@@ -5,6 +5,9 @@ import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
+
+import markdown
+
 from config import get_config
 
 
@@ -29,12 +32,37 @@ def send_market_report(report_content: str, subject: Optional[str] = None) -> bo
 
     # Build email
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject or f"Market Update - {datetime.date.today()}"
+    msg["Subject"] = subject or f"每日交易者逻辑更新 [{datetime.date.today()}]"
     msg["From"] = config.email_sender
     msg["To"] = config.email_recipient
 
-    # Plain text version (markdown)
+    # Plain text fallback
     msg.attach(MIMEText(report_content, "plain", "utf-8"))
+
+    # HTML version (render Markdown)
+    html_content = markdown.markdown(
+        report_content,
+        extensions=["tables", "fenced_code"]
+    )
+    html_body = f"""
+    <html>
+    <head>
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; }}
+            h1 {{ color: #1a1a1a; border-bottom: 2px solid #007AFF; padding-bottom: 10px; }}
+            h2 {{ color: #333; margin-top: 24px; }}
+            ul, ol {{ padding-left: 20px; }}
+            li {{ margin: 8px 0; }}
+            strong {{ color: #007AFF; }}
+            code {{ background: #f4f4f4; padding: 2px 6px; border-radius: 4px; }}
+        </style>
+    </head>
+    <body>
+        {html_content}
+    </body>
+    </html>
+    """
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
 
     # Send via Gmail SMTP
     try:

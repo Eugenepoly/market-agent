@@ -24,7 +24,7 @@ class DailyWorkflow:
         include_analysis: bool = True,
         analysis_topic: Optional[str] = None,
         collect_data: bool = True,
-        quick_collection: bool = True,
+        quick_collection: bool = False,
     ) -> List[BaseAgent]:
         """Create the list of agents for this workflow.
 

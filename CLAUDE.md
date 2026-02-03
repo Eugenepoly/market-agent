@@ -28,13 +28,17 @@ market_agent/
 │   ├── __init__.py
 │   ├── orchestrator.py        # 工作流编排器
 │   ├── state.py               # 状态管理
-│   └── base_agent.py          # Agent 基类
+│   ├── base_agent.py          # Agent 基类
+│   ├── rate_limiter.py        # API 速率限制与重试
+│   └── gemini_client.py       # Gemini 客户端封装
 ├── agents/
 │   ├── __init__.py
 │   ├── report_agent.py        # 报告生成 Agent
 │   ├── deep_analysis_agent.py # 深度分析 Agent
 │   ├── social_agent.py        # 社交发布 Agent
+│   ├── data_collection_agent.py # 数据采集 Agent (元 Agent)
 │   ├── monitor_agent.py       # VIP 监控 Agent
+│   ├── fundflow_agent.py      # 资金流向 Agent
 │   └── onchain_agent.py       # 链上监控 Agent
 ├── collectors/                # 数据采集层
 │   ├── __init__.py
@@ -60,6 +64,8 @@ market_agent/
 │   ├── report_prompt.py       # 报告提示词
 │   ├── deep_analysis_prompt.py
 │   └── social_prompt.py
+├── services/
+│   └── email_service.py       # 邮件发送服务 (Markdown→HTML)
 ├── data/                      # 采集数据存储 (不上传)
 │   ├── social_posts/          # 原始帖子 (保留3小时)
 │   ├── monitor/               # VIP监控分析报告
@@ -72,7 +78,6 @@ market_agent/
 ├── .gitignore
 ├── .gcloudignore
 ├── reports/                   # 本地报告输出目录 (不上传)
-├── market_agent.py            # [已废弃] 旧版入口
 └── CLAUDE.md                  # 本文件
 ```
 
@@ -80,7 +85,8 @@ market_agent/
 
 | Agent | 功能 | 输入 | 输出 | 需审核 |
 |-------|------|------|------|--------|
-| ReportAgent | 生成每日市场研报 | 无 | 市场报告 | 否 |
+| DataCollectionAgent | 数据采集 (元 Agent) | 无 | 采集汇总 | 否 |
+| ReportAgent | 生成每日市场研报 | 采集数据 | 市场报告 | 否 |
 | DeepAnalysisAgent | 深度分析 | 报告 + 主题(可选) | 深度分析 | 否 |
 | SocialAgent | 生成推文草稿 | 报告/分析 | X 推文草稿 | **是** |
 | MonitorAgent | VIP 社交监控 | 无 | 监控报告 + 告警 | 否 |
@@ -98,6 +104,10 @@ market_agent/
 | WORKFLOW_STATE_DIR | 工作流状态存储目录 | ./.workflow_state |
 | PENDING_APPROVAL_DIR | 待审核草稿目录 | ./pending_social_content |
 | APPROVED_DRAFTS_DIR | 已审核草稿目录 | ./approved_social_content |
+| EMAIL_ENABLED | 是否启用邮件发送 | false |
+| EMAIL_SENDER | 发件人邮箱 (Gmail) | - |
+| EMAIL_PASSWORD | Gmail 应用专用密码 | - |
+| EMAIL_RECIPIENT | 收件人邮箱 | - |
 
 ## 运行模式
 
@@ -166,6 +176,17 @@ python main.py agent onchain --quick
 
 # 完整分析（巨鲸转账 + 交易所储备 + LLM 分析）
 python main.py agent onchain
+
+# === 邮件发送 ===
+
+# 发送最新日报（HTML 格式）
+python main.py email send
+
+# 发送指定报告文件
+python main.py email send --file ./reports/Market_Update_2026-02-02.md
+
+# 自定义邮件标题
+python main.py email send --subject "[测试] 今日日报"
 ```
 
 ### 本地 HTTP 运行 (functions-framework)
@@ -333,6 +354,63 @@ ONCHAIN_CONFIG = {
    - 在 `agents/__init__.py` 中导出
    - 在 `main.py` 的 `create_orchestrator()` 中注册
 
+## ⚠️ 常见错误与教训
+
+### 1. 实体混淆错误（严重）
+**问题**：将不同公司的新闻错误关联，导致分析结论错误。
+
+**典型案例**：
+- 采集数据显示 "SpaceX 收购 xAI"
+- 报告错误写成 "Tesla 与 xAI 合并"
+- 导致对 TSLA 的分析完全错误
+
+**马斯克旗下公司必须严格区分**：
+| 公司 | 类型 | 股票代码 |
+|------|------|----------|
+| Tesla | 电动车 | **TSLA** (上市) |
+| SpaceX | 火箭/卫星 | 私有未上市 |
+| xAI | AI 模型 | 私有 |
+| X (Twitter) | 社交平台 | 私有 |
+| Boring Company | 隧道 | 私有 |
+| Neuralink | 脑机接口 | 私有 |
+
+**规则**：
+- SpaceX 的新闻 ≠ TSLA 的利好/利空
+- xAI 的新闻 ≠ TSLA 的利好/利空
+- 只有明确涉及 Tesla 的新闻才能用于 TSLA 分析
+
+### 2. 数据采集与报告生成分离
+**问题**：数据采集 Agent 只输出 JSON，没有人类可读的 Markdown 摘要。
+
+**解决方案**：每个数据采集 Agent 必须同时输出：
+- `*.json` - 原始数据（供程序读取）
+- `summary_*.md` - Markdown 摘要（供人类审查）
+
+**已实现**：
+- `MonitorAgent._save_posts_summary()` → `data/monitor/summary_*.md`
+- `FundFlowAgent._save_fund_flow_summary()` → `data/fund_flows/summary_*.md`
+- `OnchainAgent._save_onchain_summary()` → `data/onchain/summary_*.md`
+
+### 3. Prompt 设计原则
+**问题**：LLM 会自行推断因果关系，导致错误结论；或遗漏某些资产的分析。
+
+**解决方案**（已在 `prompts/report_prompt.py` 中实现）：
+```
+1. 明确告知采集数据是"唯一事实来源"
+2. 要求区分不同实体（特别是马斯克系公司）
+3. 禁止将不相关新闻强行建立因果联系
+4. 负面信息不能忽略，必须如实报告
+5. 强制要求逐一分析 6 个核心持仓：NVDA, GOOGL, TSLA, GLD, BTC, FCX
+```
+
+### 4. 数据验证流程
+生成报告后，应检查：
+- [ ] 6 个核心持仓是否全部覆盖（NVDA, GOOGL, TSLA, GLD, BTC, FCX）
+- [ ] 公司名称是否正确（Tesla vs SpaceX vs xAI）
+- [ ] 新闻归属是否正确（某新闻影响哪个资产）
+- [ ] 因果关系是否有数据支撑
+- [ ] 负面消息是否被遗漏
+
 ## 常用命令
 ```bash
 # === 本地测试 ===
@@ -344,7 +422,8 @@ python main.py agent fundflow --quick   # 资金流快速检查
 python main.py agent fundflow           # 资金流完整分析
 python main.py agent onchain --quick    # 链上快速检查
 python main.py agent onchain            # 链上完整分析
-cat reports/Market_Update_$(date +%Y-%m-%d).txt
+python main.py email send               # 发送最新日报邮件
+cat reports/Market_Update_$(date +%Y-%m-%d).md
 
 # === Cloud 测试 ===
 curl -X POST https://market-agent-oay2s5c5qa-uc.a.run.app/workflow/daily

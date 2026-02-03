@@ -225,13 +225,108 @@ class MonitorAgent(BaseAgent):
 
         alerts = self.detect_keywords(all_posts)
 
-        return {
+        result = {
             "timestamp": datetime.utcnow().isoformat(),
             "posts_collected": len(all_posts),
             "sources": list(collected.keys()),
             "alerts": alerts,
             "high_priority_alerts": [a for a in alerts if a.get("alert_level") == "high"],
+            "collected": collected,
         }
+
+        # Save markdown summary
+        self._save_posts_summary(result)
+
+        return result
+
+    def _save_posts_summary(self, result: dict) -> str:
+        """Save collected posts as a markdown summary."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H")
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+        output_dir = os.path.join(self.data_dir, "monitor")
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Build markdown content
+        lines = [
+            f"# VIP 社交监控数据摘要 [{current_time}]",
+            "",
+            "## 采集统计",
+            f"- **帖子总数**: {result.get('posts_collected', 0)}",
+            f"- **数据来源**: {', '.join(result.get('sources', []))}",
+            f"- **高优先级告警**: {len(result.get('high_priority_alerts', []))} 条",
+            f"- **采集时间**: {result.get('timestamp', '')}",
+            "",
+        ]
+
+        # High priority alerts
+        high_alerts = result.get("high_priority_alerts", [])
+        if high_alerts:
+            lines.extend([
+                "## 🔴 高优先级告警",
+                "",
+                "| 账号 | 内容摘要 | 关键词 |",
+                "|------|----------|--------|",
+            ])
+            for alert in high_alerts:
+                post = alert.get("post", {})
+                handle = post.get("handle", "unknown")
+                content = post.get("content", "")[:80].replace("|", "\\|").replace("\n", " ")
+                keywords = ", ".join([kw[1] for kw in alert.get("matched_keywords", [])])
+                lines.append(f"| @{handle} | {content}... | {keywords} |")
+            lines.append("")
+
+        # All alerts
+        all_alerts = result.get("alerts", [])
+        medium_alerts = [a for a in all_alerts if a.get("alert_level") == "medium"]
+        if medium_alerts:
+            lines.extend([
+                "## 🟡 中优先级告警",
+                "",
+            ])
+            for alert in medium_alerts[:5]:
+                post = alert.get("post", {})
+                handle = post.get("handle", "unknown")
+                content = post.get("content", "")[:100].replace("\n", " ")
+                keywords = ", ".join([kw[1] for kw in alert.get("matched_keywords", [])])
+                lines.append(f"- **@{handle}**: {content}... (关键词: {keywords})")
+            lines.append("")
+
+        # Posts by source
+        collected = result.get("collected", {})
+        for source, posts in collected.items():
+            if not posts:
+                continue
+            source_name = "X/Twitter" if source == "x" else "Truth Social"
+            lines.extend([
+                f"## {source_name} ({len(posts)} 条)",
+                "",
+            ])
+            for post in posts[:10]:
+                handle = post.get("handle", "unknown")
+                content = post.get("content", "")[:150].replace("\n", " ")
+                timestamp_str = post.get("timestamp", "")
+                stats = post.get("stats", {})
+                stats_str = ""
+                if stats:
+                    likes = stats.get("likes", 0)
+                    retweets = stats.get("retweets", 0)
+                    if likes or retweets:
+                        stats_str = f" (❤️ {likes:,}, 🔁 {retweets:,})"
+                lines.append(f"- **@{handle}** ({timestamp_str}){stats_str}")
+                lines.append(f"  > {content}...")
+                lines.append("")
+
+        # Save file
+        filename = f"summary_{timestamp}.md"
+        filepath = os.path.join(output_dir, filename)
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+        # Cleanup old files
+        self._cleanup_old_files(output_dir, "summary_", max_files=3)
+
+        return filepath
 
     def _save_analysis(self, analysis: str) -> str:
         """Save analysis report as markdown file."""

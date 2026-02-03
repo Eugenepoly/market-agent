@@ -622,6 +622,50 @@ def cli_agent_onchain(args):
         sys.exit(1)
 
 
+def cli_email_send(args):
+    """Send report via email."""
+    from services.email_service import send_market_report
+    import glob
+
+    config = get_config()
+    reports_dir = config.local_output_dir
+
+    if args.file:
+        # Use specified file
+        report_file = args.file
+    else:
+        # Find the latest report
+        pattern = os.path.join(reports_dir, "Market_Update_*.md")
+        files = glob.glob(pattern)
+        if not files:
+            pattern = os.path.join(reports_dir, "Market_Update_*.txt")
+            files = glob.glob(pattern)
+
+        if not files:
+            print(f"No reports found in {reports_dir}")
+            sys.exit(1)
+
+        report_file = max(files, key=os.path.getmtime)
+
+    if not os.path.exists(report_file):
+        print(f"File not found: {report_file}")
+        sys.exit(1)
+
+    print(f"Sending report: {report_file}")
+
+    with open(report_file, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    date_str = os.path.basename(report_file).replace('Market_Update_', '').replace('.md', '').replace('.txt', '')
+    subject = args.subject or f"每日交易者逻辑更新 [{date_str}]"
+
+    if send_market_report(content, subject):
+        print("Done!")
+    else:
+        print("Failed to send email. Check configuration.")
+        sys.exit(1)
+
+
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -685,6 +729,15 @@ def main():
     onchain_parser = agent_subparsers.add_parser("onchain", help="Run on-chain monitor agent")
     onchain_parser.add_argument("--quick", action="store_true", help="Quick check without LLM analysis")
 
+    # Email commands
+    email_parser = subparsers.add_parser("email", help="Email operations")
+    email_subparsers = email_parser.add_subparsers(dest="email_command")
+
+    # email send
+    email_send_parser = email_subparsers.add_parser("send", help="Send report via email")
+    email_send_parser.add_argument("--file", type=str, help="Path to report file (default: latest)")
+    email_send_parser.add_argument("--subject", type=str, help="Custom email subject")
+
     args = parser.parse_args()
 
     # Set local mode for CLI
@@ -718,6 +771,11 @@ def main():
             cli_agent_onchain(args)
         else:
             agent_parser.print_help()
+    elif args.command == "email":
+        if args.email_command == "send":
+            cli_email_send(args)
+        else:
+            email_parser.print_help()
     else:
         parser.print_help()
 

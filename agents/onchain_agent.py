@@ -78,6 +78,9 @@ IMPORTANT: Do NOT include any citation markers like [cite: ...] or [citation: ..
         # Save raw data
         self.collector.save_data(result, subdir="onchain")
 
+        # Save markdown summary (always)
+        self._save_onchain_summary(result.data)
+
         if quick:
             # Quick mode: just return raw data
             return AgentResult(
@@ -99,6 +102,139 @@ IMPORTANT: Do NOT include any citation markers like [cite: ...] or [citation: ..
             output=analysis,
             error=result.error,
         )
+
+    def _save_onchain_summary(self, data: list) -> str:
+        """Save on-chain data as a markdown summary."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H")
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+        output_dir = os.path.join(self.data_dir, "onchain")
+        os.makedirs(output_dir, exist_ok=True)
+
+        lines = [
+            f"# 链上数据摘要 [{current_time}]",
+            "",
+        ]
+
+        if not data:
+            lines.append("暂无数据")
+        else:
+            d = data[0]
+
+            # BTC large transactions
+            btc_txs = d.get("btc_large_transactions", {})
+            if "error" not in btc_txs:
+                threshold = btc_txs.get("threshold_btc", 100)
+                block_height = btc_txs.get("block_height", "N/A")
+                large_txs = btc_txs.get("large_transactions", [])
+
+                lines.extend([
+                    f"## 🔗 BTC 大额转账 (>{threshold} BTC)",
+                    "",
+                    f"- **区块高度**: {block_height}",
+                    f"- **大额交易数**: {len(large_txs)} 笔",
+                    "",
+                ])
+
+                if large_txs:
+                    lines.extend([
+                        "| 交易哈希 | BTC 数量 | 输出数 | 时间 |",
+                        "|----------|----------|--------|------|",
+                    ])
+                    for tx in large_txs[:10]:
+                        tx_hash = tx.get("hash", "")[:16] + "..."
+                        btc_value = tx.get("btc_value", 0)
+                        outputs = tx.get("outputs", 0)
+                        tx_time = tx.get("time", "")
+                        lines.append(f"| {tx_hash} | {btc_value:,.2f} | {outputs} | {tx_time} |")
+                    lines.append("")
+                else:
+                    lines.append("*最新区块无大额转账*")
+                    lines.append("")
+            else:
+                lines.extend([
+                    "## 🔗 BTC 大额转账",
+                    "",
+                    f"*获取失败: {btc_txs.get('error', 'Unknown error')}*",
+                    "",
+                ])
+
+            # Whale addresses
+            whale_data = d.get("whale_addresses", {})
+            btc_whales = whale_data.get("btc", {})
+            if btc_whales and "error" not in btc_whales:
+                lines.extend([
+                    "## 🐋 巨鲸地址监控 (BTC)",
+                    "",
+                    "| 地址 | 余额 (BTC) | 交易数 | 状态 |",
+                    "|------|-----------|--------|------|",
+                ])
+
+                total_btc = 0
+                for addr, info in btc_whales.items():
+                    if isinstance(info, dict) and "balance_btc" in info:
+                        short_addr = addr[:12] + "..." + addr[-4:]
+                        balance = info.get("balance_btc", 0)
+                        tx_count = info.get("tx_count", 0)
+                        total_btc += balance
+
+                        # Status based on balance
+                        if balance > 100000:
+                            status = "🐋 MEGA"
+                        elif balance > 10000:
+                            status = "🐋 WHALE"
+                        elif balance > 1000:
+                            status = "🦈 SHARK"
+                        else:
+                            status = "🐠 FISH"
+
+                        lines.append(f"| {short_addr} | {balance:,.2f} | {tx_count:,} | {status} |")
+
+                lines.extend([
+                    "",
+                    f"**监控地址数**: {len(btc_whales)}",
+                    f"**总持仓**: {total_btc:,.2f} BTC",
+                    "",
+                ])
+
+            # ETH whales if present
+            eth_whales = whale_data.get("eth", {})
+            if eth_whales and "error" not in eth_whales:
+                lines.extend([
+                    "## 🐋 巨鲸地址监控 (ETH)",
+                    "",
+                    "| 地址 | 余额 (ETH) | 交易数 |",
+                    "|------|-----------|--------|",
+                ])
+
+                for addr, info in eth_whales.items():
+                    if isinstance(info, dict) and "balance_eth" in info:
+                        short_addr = addr[:12] + "..." + addr[-4:]
+                        balance = info.get("balance_eth", 0)
+                        tx_count = info.get("tx_count", 0)
+                        lines.append(f"| {short_addr} | {balance:,.2f} | {tx_count:,} |")
+
+                lines.append("")
+
+            # Collection info
+            lines.extend([
+                "## 📋 采集信息",
+                "",
+                f"- **采集时间**: {d.get('collected_at', current_time)}",
+                f"- **数据来源**: Blockchain.info API",
+                "",
+            ])
+
+        # Save file
+        filename = f"summary_{timestamp}.md"
+        filepath = os.path.join(output_dir, filename)
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+        # Cleanup old files
+        self._cleanup_old_files(output_dir, "summary_", max_files=3)
+
+        return filepath
 
     def _format_quick_summary(self, data: list) -> str:
         """Format a quick summary of on-chain data."""
