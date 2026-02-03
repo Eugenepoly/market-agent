@@ -11,12 +11,13 @@ import markdown
 from config import get_config
 
 
-def send_market_report(report_content: str, subject: Optional[str] = None) -> bool:
+def send_market_report(report_content: str, subject: Optional[str] = None, test_mode: bool = False) -> bool:
     """Send market report via email.
 
     Args:
         report_content: The markdown report content.
         subject: Optional custom subject line.
+        test_mode: If True, only send to the first recipient.
 
     Returns:
         True if sent successfully, False otherwise.
@@ -30,6 +31,10 @@ def send_market_report(report_content: str, subject: Optional[str] = None) -> bo
     if not all([recipients, config.email_sender, config.email_password]):
         print("Email configuration incomplete, skipping email send")
         return False
+
+    # Test mode: only send to first recipient
+    if test_mode:
+        recipients = recipients[:1]
 
     # Build email
     msg = MIMEMultipart("alternative")

@@ -12,16 +12,18 @@ class ReportAgent(BaseAgent):
     name = "report_agent"
     requires_approval = False
 
-    def __init__(self, data_dir: str = "./data", send_email: bool = True):
+    def __init__(self, data_dir: str = "./data", send_email: bool = True, test_mode: bool = False):
         """Initialize the report agent.
 
         Args:
             data_dir: Directory containing collected data.
             send_email: Whether to send email after generating report.
+            test_mode: If True, only send email to first recipient.
         """
         super().__init__()
         self.data_aggregator = DataAggregator(data_dir)
         self.send_email = send_email
+        self.test_mode = test_mode
 
     def get_prompt(self, context: WorkflowContext) -> str:
         """Get the market analysis prompt with collected data.
@@ -53,7 +55,7 @@ class ReportAgent(BaseAgent):
         if self.send_email and result.success and result.output:
             try:
                 from services.email_service import send_market_report
-                send_market_report(result.output)
+                send_market_report(result.output, test_mode=self.test_mode)
             except Exception as e:
                 print(f"⚠️ Failed to send email: {e}")
 

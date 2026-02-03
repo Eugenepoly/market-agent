@@ -659,7 +659,10 @@ def cli_email_send(args):
     date_str = os.path.basename(report_file).replace('Market_Update_', '').replace('.md', '').replace('.txt', '')
     subject = args.subject or f"每日交易者逻辑更新 [{date_str}]"
 
-    if send_market_report(content, subject):
+    if args.test:
+        print("Test mode: sending to first recipient only")
+
+    if send_market_report(content, subject, test_mode=args.test):
         print("Done!")
     else:
         print("Failed to send email. Check configuration.")
@@ -737,6 +740,7 @@ def main():
     email_send_parser = email_subparsers.add_parser("send", help="Send report via email")
     email_send_parser.add_argument("--file", type=str, help="Path to report file (default: latest)")
     email_send_parser.add_argument("--subject", type=str, help="Custom email subject")
+    email_send_parser.add_argument("--test", action="store_true", help="Test mode: only send to first recipient")
 
     args = parser.parse_args()
 
