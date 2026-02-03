@@ -347,7 +347,7 @@ ONCHAIN_CONFIG = {
 
 ## 代码修改规范
 1. API 密钥必须通过环境变量读取，禁止硬编码
-2. 修改代码后需要重新部署 Cloud Run
+2. **修改代码后必须先本地测试，通过后再部署到 Cloud Run**
 3. 修改 prompt 后建议先本地测试再部署
 4. Agent 使用 `types.Tool(google_search=types.GoogleSearch())` 启用网络搜索
 5. 本地/Cloud 模式通过 `RUN_LOCAL` 环境变量切换
