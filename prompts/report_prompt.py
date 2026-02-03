@@ -1,16 +1,31 @@
 """Prompt template for the Report Agent."""
 
 import datetime
+from typing import Optional
 
 
-def get_report_prompt() -> str:
+def get_report_prompt(collected_data: Optional[str] = None) -> str:
     """Get the market analysis report prompt.
+
+    Args:
+        collected_data: Pre-collected data from monitors (social, fund flow, onchain).
 
     Returns:
         The formatted prompt string with current date.
     """
-    return f"""
-### 角色：全球宏观策略分析师 (Global Macro Strategist)
+    # Build the collected data section
+    data_section = ""
+    if collected_data:
+        data_section = f"""
+### 已采集的实时数据
+以下是系统在过去几小时内采集的实时数据，请在分析时参考：
+
+{collected_data}
+
+---
+"""
+
+    return f"""{data_section}### 角色：全球宏观策略分析师 (Global Macro Strategist)
 
 ### 第一阶段：动态市场扫描 (Dynamic Discovery)
 1. 检索过去 24 小时内，全球市场中波动率（Volatility）或成交量（Volume）最异常的 3 个板块。
@@ -32,7 +47,7 @@ def get_report_prompt() -> str:
 - 顶级交易员提醒：当所有人都在看多时，风险通常在积累。
 
 ### 第三阶段：研报输出要求
-# 每日交易者逻辑更新 [{date}]
+# 每日交易者逻辑更新 [{datetime.date.today()}]
 
 ## 📊 今日市场焦点 (Market Heatmap)
 [列出 AI 自动发现的 3 个最值得关注的异动点，并说明理由]
@@ -48,4 +63,6 @@ def get_report_prompt() -> str:
 
 ## 💡 NotebookLM 补充建议
 [建议将哪些具体数据点作为新 Source 录入，以修正原有的 2026 估值模型]
-""".format(date=datetime.date.today())
+
+IMPORTANT: Do NOT include any citation markers like [cite: ...] in your response.
+"""

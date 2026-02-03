@@ -3,6 +3,7 @@
 from core.base_agent import BaseAgent
 from core.state import WorkflowContext
 from prompts import get_report_prompt
+from collectors.data_aggregator import DataAggregator
 
 
 class ReportAgent(BaseAgent):
@@ -11,13 +12,25 @@ class ReportAgent(BaseAgent):
     name = "report_agent"
     requires_approval = False
 
-    def get_prompt(self, context: WorkflowContext) -> str:
-        """Get the market analysis prompt.
+    def __init__(self, data_dir: str = "./data"):
+        """Initialize the report agent.
 
         Args:
-            context: The workflow context (not used for report generation).
+            data_dir: Directory containing collected data.
+        """
+        super().__init__()
+        self.data_aggregator = DataAggregator(data_dir)
+
+    def get_prompt(self, context: WorkflowContext) -> str:
+        """Get the market analysis prompt with collected data.
+
+        Args:
+            context: The workflow context.
 
         Returns:
-            The report generation prompt.
+            The report generation prompt with pre-collected data.
         """
-        return get_report_prompt()
+        # Aggregate all collected data
+        collected_data = self.data_aggregator.format_for_prompt()
+
+        return get_report_prompt(collected_data=collected_data)

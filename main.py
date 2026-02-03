@@ -80,6 +80,8 @@ def main_handler(request: Request):
             data = request.get_json(silent=True) or {}
             skip_analysis = data.get("skip_analysis", False)
             topic = data.get("topic")
+            collect_data = data.get("collect_data", True)
+            quick_collection = data.get("quick_collection", True)
 
             # Update workflow factory with options
             orchestrator.register_workflow(
@@ -87,6 +89,8 @@ def main_handler(request: Request):
                 get_daily_workflow_factory(
                     include_analysis=not skip_analysis,
                     analysis_topic=topic,
+                    collect_data=collect_data,
+                    quick_collection=quick_collection,
                 )
             )
 
@@ -212,10 +216,14 @@ def cli_workflow_daily(args):
         get_daily_workflow_factory(
             include_analysis=not args.skip_analysis,
             analysis_topic=args.topic,
+            collect_data=not args.skip_collection,
+            quick_collection=not args.full_collection,
         )
     )
 
     print("Starting daily workflow...")
+    if not args.skip_collection:
+        print("Step 1: Collecting data (VIP social, fund flow, onchain)...")
     context = orchestrator.run_workflow("daily")
 
     if context.status == WorkflowStatus.WAITING_APPROVAL:
@@ -629,6 +637,8 @@ def main():
     daily_parser = workflow_subparsers.add_parser("daily", help="Run daily workflow")
     daily_parser.add_argument("--skip-analysis", action="store_true", help="Skip deep analysis step")
     daily_parser.add_argument("--topic", type=str, help="Specific topic for deep analysis")
+    daily_parser.add_argument("--skip-collection", action="store_true", help="Skip data collection step")
+    daily_parser.add_argument("--full-collection", action="store_true", help="Run full data collection with LLM analysis")
 
     # workflow status
     status_parser = workflow_subparsers.add_parser("status", help="Get workflow status")
