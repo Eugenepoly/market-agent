@@ -15,7 +15,7 @@
 - Google Gemini API (google-genai) + Google Search 工具
 - Google Cloud Run (容器化部署)
 - Google Cloud Storage (Cloud 模式报告存储)
-- Google Cloud Scheduler (定时触发，美东时间每天 5PM)
+- Google Cloud Scheduler (定时触发，美东时间每天 8AM)
 - Flask (HTTP 路由)
 
 ## 项目结构
@@ -339,7 +339,7 @@ ONCHAIN_CONFIG = {
 ## Cloud 资源
 - **Cloud Run 服务**: market-agent (us-central1)
 - **Cloud Storage Bucket**: market-reports-bucket (公开可读)
-- **Cloud Scheduler**: market-agent-daily (每天美东 5PM 触发)
+- **Cloud Scheduler**: market-agent-daily (每天美东 8AM 触发)
 - **服务账号**: my-notebooklm-bot@gen-lang-client-0051485402.iam.gserviceaccount.com
 
 ## 代码修改规范
