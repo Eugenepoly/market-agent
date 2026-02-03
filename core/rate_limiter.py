@@ -14,9 +14,9 @@ class RateLimitConfig:
     RPM_LIMIT = 2000       # Requests per minute (typical)
 
     # Retry settings
-    MAX_RETRIES = 3
-    BASE_DELAY = 2.0       # Base delay in seconds
-    MAX_DELAY = 60.0       # Max delay in seconds
+    MAX_RETRIES = 4
+    BASE_DELAY = 5.0       # Base delay in seconds
+    MAX_DELAY = 120.0      # Max delay in seconds
     JITTER = 0.5           # Random jitter factor
 
 
