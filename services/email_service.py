@@ -26,7 +26,8 @@ def send_market_report(report_content: str, subject: Optional[str] = None) -> bo
     if not config.email_enabled:
         return False
 
-    if not all([config.email_recipient, config.email_sender, config.email_password]):
+    recipients = config.get_email_recipients_list()
+    if not all([recipients, config.email_sender, config.email_password]):
         print("Email configuration incomplete, skipping email send")
         return False
 
@@ -34,7 +35,7 @@ def send_market_report(report_content: str, subject: Optional[str] = None) -> bo
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject or f"每日交易者逻辑更新 [{datetime.date.today()}]"
     msg["From"] = config.email_sender
-    msg["To"] = config.email_recipient
+    msg["To"] = ", ".join(recipients)
 
     # Plain text fallback
     msg.attach(MIMEText(report_content, "plain", "utf-8"))
@@ -68,8 +69,8 @@ def send_market_report(report_content: str, subject: Optional[str] = None) -> bo
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(config.email_sender, config.email_password)
-            server.sendmail(config.email_sender, config.email_recipient, msg.as_string())
-        print(f"✉️ Email sent to {config.email_recipient}")
+            server.sendmail(config.email_sender, recipients, msg.as_string())
+        print(f"✉️ Email sent to {', '.join(recipients)}")
         return True
     except Exception as e:
         print(f"❌ Failed to send email: {e}")

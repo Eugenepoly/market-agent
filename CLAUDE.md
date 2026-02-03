@@ -107,7 +107,7 @@ market_agent/
 | EMAIL_ENABLED | 是否启用邮件发送 | false |
 | EMAIL_SENDER | 发件人邮箱 (Gmail) | - |
 | EMAIL_PASSWORD | Gmail 应用专用密码 | - |
-| EMAIL_RECIPIENT | 收件人邮箱 | - |
+| EMAIL_RECIPIENTS | 收件人邮箱 (逗号分隔多个) | - |
 
 ## 运行模式
 

@@ -35,9 +35,15 @@ class Config:
 
     # Email settings
     email_enabled: bool = field(default_factory=lambda: os.environ.get("EMAIL_ENABLED", "false").lower() == "true")
-    email_recipient: str = field(default_factory=lambda: os.environ.get("EMAIL_RECIPIENT", ""))
+    email_recipients: str = field(default_factory=lambda: os.environ.get("EMAIL_RECIPIENTS", ""))
     email_sender: str = field(default_factory=lambda: os.environ.get("EMAIL_SENDER", ""))
     email_password: str = field(default_factory=lambda: os.environ.get("EMAIL_PASSWORD", ""))
+
+    def get_email_recipients_list(self) -> list:
+        """Parse comma-separated recipients into a list."""
+        if not self.email_recipients:
+            return []
+        return [r.strip() for r in self.email_recipients.split(",") if r.strip()]
 
     def __post_init__(self):
         """Validate configuration after initialization."""
