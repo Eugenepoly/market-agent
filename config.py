@@ -33,6 +33,12 @@ class Config:
     pending_approval_dir: str = field(default_factory=lambda: os.environ.get("PENDING_APPROVAL_DIR", "./pending_social_content"))
     approved_drafts_dir: str = field(default_factory=lambda: os.environ.get("APPROVED_DRAFTS_DIR", "./approved_social_content"))
 
+    # Email settings
+    email_enabled: bool = field(default_factory=lambda: os.environ.get("EMAIL_ENABLED", "false").lower() == "true")
+    email_recipient: str = field(default_factory=lambda: os.environ.get("EMAIL_RECIPIENT", ""))
+    email_sender: str = field(default_factory=lambda: os.environ.get("EMAIL_SENDER", ""))
+    email_password: str = field(default_factory=lambda: os.environ.get("EMAIL_PASSWORD", ""))
+
     def __post_init__(self):
         """Validate configuration after initialization."""
         if not self.gemini_api_key:

@@ -103,6 +103,9 @@ class Orchestrator:
             # Save intermediate results
             if agent.name == "report_agent":
                 self.storage.save_report(result.output)
+                # Send email notification
+                from services.email_service import send_market_report
+                send_market_report(result.output)
             elif agent.name == "deep_analysis_agent":
                 analysis_content = result.output.get("analysis", str(result.output))
                 self.storage.save_analysis(analysis_content)
